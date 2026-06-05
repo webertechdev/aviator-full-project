@@ -5,3 +5,5 @@ dist/
 *.local
 .firebase/
 functions/.runtimeconfig.json
+
+firebase-debug.log
