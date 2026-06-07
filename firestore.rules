@@ -1,60 +1,49 @@
-{
-  "indexes": [
-    {
-      "collectionGroup": "bets",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "uid", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "bets",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "roundId", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "bets",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "result", "order": "ASCENDING" },
-        { "fieldPath": "winnings", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "transactions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "uid", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "transactions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "rounds",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "startTime", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "chat",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
-  ],
-  "fieldOverrides": []
+
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isAdmin();
+    }
+
+    match /transactions/{id} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null &&
+        (resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /bets/{id} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    match /rounds/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /gameState/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /chat/{id} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.chatEnabled == true ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        );
+
+      allow delete: if isAdmin();
+    }
+  }
 }
