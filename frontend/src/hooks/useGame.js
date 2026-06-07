@@ -206,7 +206,13 @@ export function useGame() {
       });
       setBets(prev => {
         const next = [...prev];
-        next[slotIdx] = { stake, autoCashout, slotIdx, cashedOut: false };
+       next[slotIdx] = {
+        id: betId,
+        stake,
+        autoCashout,
+        slotIdx,
+        cashedOut: false
+};
         return next;
       });
       await refreshProfile();
@@ -214,21 +220,45 @@ export function useGame() {
   }, [user, profile, gamePhase, gameState, activeBalance, currency]);
 
   async function doCashout(slotIdx, bet, currentMult) {
-    if (!bet || bet.cashedOut) return;
-    setBets(prev => { const n = [...prev]; if (n[slotIdx]) n[slotIdx] = { ...n[slotIdx], cashedOut: true }; return n; });
-    const winnings = parseFloat((bet.stake * currentMult).toFixed(2));
-    const field = profile?.mode === "demo" ? "demoBalance" : "balance";
-    try {
-      await runTransaction(db, async (t) => {
-        const uRef = doc(db, "users", user.uid);
-        const uSnap = await t.get(uRef);
-        t.update(uRef, { [field]: (uSnap.data()[field] || 0) + winnings });
+  if (!bet || bet.cashedOut) return;
+
+  setBets(prev => {
+    const next = [...prev];
+    if (next[slotIdx]) next[slotIdx] = { ...next[slotIdx], cashedOut: true };
+    return next;
+  });
+
+  const winnings = parseFloat((bet.stake * currentMult).toFixed(2));
+  const field = profile?.mode === "demo" ? "demoBalance" : "balance";
+
+  try {
+    await runTransaction(db, async (t) => {
+      const uRef = doc(db, "users", user.uid);
+      const uSnap = await t.get(uRef);
+
+      t.update(uRef, {
+        [field]: (uSnap.data()[field] || 0) + winnings,
       });
-      setWinNotif({ slotIdx, winnings, mult: currentMult });
-      setTimeout(() => setWinNotif(null), 3000);
-      await refreshProfile();
-    } catch {}
+    });
+
+    if (bet.id) {
+      await updateDoc(doc(db, "bets", bet.id), {
+        result: "won",
+        cashedOut: true,
+        cashoutMultiplier: currentMult,
+        winnings,
+        cashedOutAt: serverTimestamp(),
+      });
+    }
+
+    setWinNotif({ slotIdx, winnings, mult: currentMult });
+    setTimeout(() => setWinNotif(null), 3000);
+
+    await refreshProfile();
+  } catch (err) {
+    console.error("Cashout error:", err);
   }
+}
 
   const cashout = useCallback(async (slotIdx) => {
     const bet = bets[slotIdx];
