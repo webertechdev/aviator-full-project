@@ -175,7 +175,7 @@ export function useGame() {
   const placeBet = useCallback(async (slotIdx, stake, autoCashout) => {
     if (!user || gamePhase !== "waiting") return setError("Wait for next round");
     if (stake > activeBalance) return setError("Insufficient balance");
-    if (!gameState?.roundId && gamePhase !== "waiting") return setError("No active round");
+    if (!gameState?.roundId) return setError("Round not ready yet");
     setError(null);
 
     const field = profile?.mode === "demo" ? "demoBalance" : "balance";
@@ -188,11 +188,17 @@ export function useGame() {
         const betRef = doc(collection(db, "bets"));
         t.update(uRef, { [field]: bal - stake });
         t.set(betRef, {
-          id: betRef.id, uid: user.uid,
+          id: betRef.id,
+          uid: user.uid,
           fullName: profile?.fullName || "Player",
-          email: profile?.email, roundId: gameState?.roundId || "pending",
-          stake, autoCashout: autoCashout || null,
-          result: "pending", currency,
+          email: profile?.email,
+
+  // Always attach the bet to the active round
+          roundId: gameState?.roundId,
+          stake,
+          autoCashout: autoCashout || null,
+          result: "pending",
+          currency,
           mode: profile?.mode || "real",
           timestamp: serverTimestamp(),
         });
