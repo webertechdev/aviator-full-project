@@ -6,7 +6,7 @@
 ## 🗂️ PROJECT ARCHITECTURE
 
 ```
-aviator/                              ← GitHub repo root
+aviator-full-project/                              ← GitHub repo root
 │
 ├── 📁 frontend/                      ← Player Game UI  (→ Vercel)
 │   ├── index.html                    ← App shell
