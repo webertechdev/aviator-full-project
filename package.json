@@ -1,13 +1,13 @@
 {
-  "name": "aviator-monorepo",
-  "version": "1.0.0",
+  "name": "aviator-full-project",
+  "version": "2.0.0",
   "private": true,
+  "dependencies": {
+    "axios": "^1.7.2",
+    "firebase-admin": "^12.2.0"
+  },
   "scripts": {
-    "dev:frontend": "cd frontend && npm run dev",
-    "dev:admin": "cd admin && npm run dev",
-    "dev:functions": "cd functions && npm run serve",
-    "install:all": "npm i && cd frontend && npm i && cd ../admin && npm i && cd ../functions && npm i",
-    "build:all": "cd frontend && npm run build && cd ../admin && npm run build",
-    "deploy": "firebase deploy --project aviator-6827d"
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build"
   }
 }
