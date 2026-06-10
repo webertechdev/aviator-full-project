@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import axios from "axios";
@@ -18,7 +17,7 @@ const db = getFirestore();
 // ✅ Pesapal config
 const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
 const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL || "https://cybqa.pesapal.com"; // sandbox default
+const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL || "https://cybqa.pesapal.com/pesapalv3";
 const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
 
 let _token = null, _expiry = 0;
@@ -96,8 +95,8 @@ export default async function handler(req, res) {
         callback_url: `${appUrl}/game`,
         notification_id: ipnRes.data.ipn_id,
         billing_address: {
-          phone_number: phoneNumber, // use sandbox test numbers like 254700000000
-          country_code: { KES:"KE", TZS:"TZ", UGX:"UG" }[currency] || "KE",
+          phone_number: phoneNumber,
+          country_code: { KES: "KE", TZS: "TZ", UGX: "UG" }[currency] || "KE",
           first_name: user.fullName?.split(" ")[0] || "Player",
           last_name: user.fullName?.split(" ")[1] || "",
           email_address: user.email || "",
