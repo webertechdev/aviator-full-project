@@ -13,9 +13,9 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY    || "KLg8UrH2NzfTvfeC4DuDXBQo2OPohmgH";
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET || "EA1hRGKSXVrIdahZmOLE8uG3ZK8=";
-const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL        || "https://cybqa.pesapal.com/pesapalv3";
+const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
+const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
+const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL;
 const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
 
 let _token = null, _expiry = 0;
@@ -61,9 +61,10 @@ export default async function handler(req, res) {
     });
 
     const token = await getPesapalToken();
+      console.log("TOKEN:", token);
     const appUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://your-app.vercel.app";
+      : "https://aviator-full-project.vercel.app";
 
     const ipnRes = await axios.post(
       `${PESAPAL_BASE}/api/URLSetup/RegisterIPN`,
