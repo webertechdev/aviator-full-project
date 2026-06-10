@@ -60,8 +60,13 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString(),
     });
 
-    const token = await getPesapalToken();
-      console.log("TOKEN:", token);
+    console.log("PESAPAL_BASE:", PESAPAL_BASE);
+    console.log("KEY EXISTS:", !!PESAPAL_KEY);
+    console.log("SECRET EXISTS:", !!PESAPAL_SECRET);
+
+  const token = await getPesapalToken();
+    console.log("TOKEN:", token);
+    
     const appUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : "https://aviator-full-project.vercel.app";
