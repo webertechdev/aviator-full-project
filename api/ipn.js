@@ -13,11 +13,9 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY    || "KLg8UrH2NzfTvfeC4DuDXBQo2OPohmgH";
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET || "EA1hRGKSXVrIdahZmOLE8uG3ZK8=";
-const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL        || "https://cybqa.pesapal.com/pesapalv3";
-
-export default async function handler(req, res) {
+const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
+const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
+const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL;
   const { orderTrackingId, orderMerchantReference } = { ...req.body, ...req.query };
   if (!orderTrackingId || !orderMerchantReference)
     return res.status(400).json({ error: "Missing IPN params" });
@@ -35,8 +33,7 @@ export default async function handler(req, res) {
       { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
     );
     const statusData = statusRes.data;
-    const isPaid = statusData.payment_status_description === "Completed";
-
+   const isPaid = statusData.payment_status_description === "Completed";
     const txnRef = db.collection("transactions").doc(orderMerchantReference);
     const txnDoc = await txnRef.get();
     if (!txnDoc.exists) return res.status(404).json({ error: "Transaction not found" });
