@@ -16,6 +16,7 @@ const db = getFirestore();
 const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
 const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL;
+export default async function handler(req, res) {
   const { orderTrackingId, orderMerchantReference } = { ...req.body, ...req.query };
   if (!orderTrackingId || !orderMerchantReference)
     return res.status(400).json({ error: "Missing IPN params" });
