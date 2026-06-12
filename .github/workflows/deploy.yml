@@ -1,27 +1,53 @@
 name: Deploy Aviator
 
 on:
-push:
-branches: [main]
+  push:
+    branches: [main]
 
 jobs:
-deploy:
-runs-on: ubuntu-latest
+  deploy:
+    runs-on: ubuntu-latest
 
-```
-steps:
-  - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: "20"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-  - name: Install & Build Frontend
-    run: |
-      cd frontend
-      npm install
-      npm run build
-    env:
-      VITE_API_BASE: https://aviator-full-project.vercel.app/api
-```
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install & Build Frontend
+        run: |
+          cd frontend
+          pnpm install
+          pnpm run build
+        env:
+          VITE_API_BASE: https://aviator-full-project.vercel.app/api
+
+      - name: Deploy to Vercel
+        uses: vercel/actions/deploy@v2
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          org-id: ${{ secrets.VERCEL_ORG_ID }}
+          project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Add Intasend environment variables for Vercel deployment
+          env: |
+            INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }}
+            INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }}
+            INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }}
+            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+            FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+            FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+
+      - name: Deploy Admin Dashboard to Firebase Hosting
+        run: |
+          pnpm install -g firebase-tools
+          cd admin && pnpm install && pnpm run build
+          cd ..
+          firebase deploy --only hosting --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
