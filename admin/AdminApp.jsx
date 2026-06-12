@@ -145,7 +145,7 @@ function Withdrawals({ transactions, adminUid, reload }) {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error);
-      alert(`Withdrawal ${action}d successfully`);
+      alert(`Withdrawal ${action}d successfully: ${d.message}`);
       reload();
     } catch(e) { alert("Error: "+e.message); }
     setLoading(l=>({...l,[txnId]:false}));
