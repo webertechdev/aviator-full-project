@@ -8,7 +8,7 @@
     "intasend-node": "^1.1.2"
   },
   "scripts": {
-    "dev": "cd frontend && pnpm run dev",
-    "build": "cd frontend && pnpm install && pnpm run build"
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build"
   }
 }
