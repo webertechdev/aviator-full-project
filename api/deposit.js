@@ -1,6 +1,7 @@
+
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import axios from "axios";
+import IntaSend from "intasend-node";
 
 if (!getApps().length) {
   initializeApp({
@@ -13,40 +14,17 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL;
+const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
+const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
+const INTASEND_TEST_MODE = process.env.INTASEND_TEST_MODE === "true";
+
+const intasend = new IntaSend(
+  INTASEND_PUBLISHABLE_KEY,
+  INTASEND_SECRET_KEY,
+  INTASEND_TEST_MODE
+);
+
 const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
-
-// --- Addition 1: Token error handling ---
-let _token = null, _expiry = 0;
-async function getPesapalToken() {
-  if (_token && Date.now() < _expiry) return _token;
-  const r = await axios.post(
-    `${PESAPAL_BASE}/api/Auth/RequestToken`,
-    { consumer_key: PESAPAL_KEY, consumer_secret: PESAPAL_SECRET },
-    { headers: { "Content-Type": "application/json", Accept: "application/json" } }
-  );
-  if (!r.data.token) {
-    throw new Error(`Pesapal auth failed: ${JSON.stringify(r.data.error || r.data)}`);
-  }
-  _token = r.data.token;
-  _expiry = Date.now() + 4 * 60 * 1000;
-  return _token;
-}
-
-// --- Addition 3: IPN ID caching ---
-let _ipnId = null;
-async function getIpnId(token, appUrl) {
-  if (_ipnId) return _ipnId;
-  const ipnRes = await axios.post(
-    `${PESAPAL_BASE}/api/URLSetup/RegisterIPN`,
-    { url: `${appUrl}/api/ipn`, ipn_notification_type: "POST" },
-    { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" } }
-  );
-  _ipnId = ipnRes.data.ipn_id;
-  return _ipnId;
-}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -59,7 +37,6 @@ export default async function handler(req, res) {
   if (!uid || !amount || !currency || !phoneNumber)
     return res.status(400).json({ error: "Missing required fields" });
 
-  // --- Addition 4: Numeric/negative amount validation ---
   if (isNaN(amount) || amount <= 0)
     return res.status(400).json({ error: "Invalid amount" });
 
@@ -69,7 +46,6 @@ export default async function handler(req, res) {
   if (rounded < min)
     return res.status(400).json({ error: `Minimum deposit is ${min.toLocaleString()} ${currency}` });
 
-  // --- Addition 2: Declare txnRef outside try for rollback access ---
   let txnRef;
   try {
     const userDoc = await db.collection("users").doc(uid).get();
@@ -83,51 +59,33 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString(),
     });
 
-    console.log("PESAPAL_BASE:", PESAPAL_BASE);
-    console.log("KEY EXISTS:", !!PESAPAL_KEY);
-    console.log("SECRET EXISTS:", !!PESAPAL_SECRET);
-
-    const token = await getPesapalToken();
-    console.log("TOKEN:", token);
-
-    const appUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://aviator-full-project.vercel.app";
-
-    // --- Uses cached IPN ID instead of re-registering every time ---
-    const ipnId = await getIpnId(token, appUrl);
-
-    const orderRes = await axios.post(
-      `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
-      {
-        id: txnRef.id, currency, amount: rounded,
-        description: "Aviator deposit",
-        callback_url: `${appUrl}/game`,
-        notification_id: ipnId,
-        billing_address: {
-          phone_number: phoneNumber,
-          country_code: { KES:"KE", TZS:"TZ", UGX:"UG" }[currency] || "KE",
-          first_name: user.fullName?.split(" ")[0] || "Player",
-          last_name: user.fullName?.split(" ")[1] || "",
-          email_address: user.email || "",
-        },
-      },
-      { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" } }
-    );
-
-    await txnRef.update({ orderTrackingId: orderRes.data.order_tracking_id });
-
-    return res.status(200).json({
-      status: "pending",
-      transactionId: txnRef.id,
-      message: `M-PESA STK push sent to ${phoneNumber}. Please enter your PIN to confirm.`,
+    const collection = intasend.collection();
+    const stkPushRes = await collection.mpesaStkPush({
+      first_name: user.fullName?.split(" ")[0] || "Player",
+      last_name: user.fullName?.split(" ")[1] || "",
+      email: user.email || "",
+      host: req.headers.origin || "https://aviator-full-project.vercel.app", // Use request origin or default
+      amount: rounded,
+      phone_number: phoneNumber,
+      api_ref: txnRef.id, // Use Firestore transaction ID as API reference
     });
+
+    if (stkPushRes.status === "success") {
+      await txnRef.update({ intasendInvoiceId: stkPushRes.invoice_id });
+      return res.status(200).json({
+        status: "pending",
+        transactionId: txnRef.id,
+        message: `M-PESA STK push sent to ${phoneNumber}. Please enter your PIN to confirm.`,
+      });
+    } else {
+      throw new Error(stkPushRes.message || "Intasend STK Push failed");
+    }
+
   } catch (e) {
-    console.error("Deposit error:", e.response?.data || e.message);
-    // --- Addition 2: Mark transaction as failed on error ---
+    console.error("Deposit error:", e.message);
     if (txnRef) {
       await txnRef.update({ status: "failed", error: e.message }).catch(() => {});
     }
-    return res.status(500).json({ error: e.response?.data?.message || e.message || "Failed" });
+    return res.status(500).json({ error: e.message || "Failed to initiate deposit" });
   }
 }
