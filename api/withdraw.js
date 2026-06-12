@@ -1,5 +1,6 @@
+
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore } from "firebase-admin/firestore";
 
 if (!getApps().length) {
   initializeApp({
@@ -11,6 +12,7 @@ if (!getApps().length) {
   });
 }
 const db = getFirestore();
+
 const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
 
 export default async function handler(req, res) {
@@ -21,7 +23,11 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { uid, amount, currency, phoneNumber } = req.body;
-  if (!uid || !amount || !currency) return res.status(400).json({ error: "Missing fields" });
+  if (!uid || !amount || !currency || !phoneNumber)
+    return res.status(400).json({ error: "Missing required fields" });
+
+  if (isNaN(amount) || amount <= 0)
+    return res.status(400).json({ error: "Invalid amount" });
 
   const min = MIN[currency];
   if (!min) return res.status(400).json({ error: `Unsupported currency: ${currency}` });
@@ -30,36 +36,33 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Minimum withdrawal is ${min.toLocaleString()} ${currency}` });
 
   try {
-    const userRef = db.collection("users").doc(uid);
-    const userDoc = await userRef.get();
+    const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
-
     const user = userDoc.data();
-    if (rounded > (user.balance || 0))
-      return res.status(400).json({ error: "Insufficient balance" });
 
+    // Check if user has sufficient balance for the withdrawal request
+    const userBalance = user.balance || 0;
+    if (rounded > userBalance) {
+      return res.status(400).json({ error: "Insufficient balance for withdrawal request" });
+    }
+
+    // Create a pending withdrawal transaction. Balance is NOT decremented here.
+    // It will be decremented upon admin approval and successful Intasend payout.
     const txnRef = db.collection("transactions").doc();
     await txnRef.set({
-      id: txnRef.id, uid, type: "withdraw", amount: rounded, currency,
-      phoneNumber: phoneNumber || user.phone,
+      id: txnRef.id, uid, type: "withdraw", amount: rounded,
+      currency, phoneNumber, status: "pending",
       fullName: user.fullName || "",
-      email: user.email || "",
-      status: "pending",
-      adminNote: null,
-      requestedAt: new Date().toISOString(),
       timestamp: new Date().toISOString(),
     });
-
-    // Hold the funds while pending
-    await userRef.update({ balance: FieldValue.increment(-rounded) });
 
     return res.status(200).json({
       status: "pending",
       transactionId: txnRef.id,
-      message: "Withdrawal request submitted. Pending admin approval.",
+      message: `Withdrawal request of ${rounded.toLocaleString()} ${currency} submitted. Pending admin approval.`,
     });
   } catch (e) {
-    console.error("Withdraw error:", e.message);
-    return res.status(500).json({ error: e.message || "Withdrawal failed" });
+    console.error("Withdrawal request error:", e.message);
+    return res.status(500).json({ error: e.message || "Failed to submit withdrawal request" });
   }
 }
