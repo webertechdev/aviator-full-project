@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "cd frontend && pnpm install && pnpm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "npm install",
+  "installCommand": "pnpm install",
   "framework": null,
   "functions": {
     "api/*.js": {
@@ -11,5 +11,13 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "env": {
+    "INTASEND_PUBLISHABLE_KEY": "",
+    "INTASEND_SECRET_KEY": "",
+    "INTASEND_TEST_MODE": "true",
+    "FIREBASE_PROJECT_ID": "",
+    "FIREBASE_CLIENT_EMAIL": "",
+    "FIREBASE_PRIVATE_KEY": ""
+  }
 }
