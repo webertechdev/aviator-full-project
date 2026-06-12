@@ -1,6 +1,5 @@
-
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import IntaSend from "intasend-node";
 
 if (!getApps().length) {
@@ -31,11 +30,15 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   const { uid, amount, currency, phoneNumber } = req.body;
-  if (!uid || !amount || !currency || !phoneNumber)
+
+  if (!uid || !amount || !currency || !phoneNumber) {
     return res.status(400).json({ error: "Missing required fields" });
+  }
 
   if (isNaN(amount) || amount <= 0)
     return res.status(400).json({ error: "Invalid amount" });
@@ -46,45 +49,68 @@ export default async function handler(req, res) {
   if (rounded < min)
     return res.status(400).json({ error: `Minimum deposit is ${min.toLocaleString()} ${currency}` });
 
-  let txnRef;
+  if (!INTASEND_PUBLISHABLE_KEY) {
+    console.error("INTASEND_PUBLISHABLE_KEY is not set.");
+    return res.status(500).json({ error: "Server configuration error: Intasend key missing." });
+  }
+
+  let transactionRef;
   try {
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
-    const user = userDoc.data();
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
 
-    txnRef = db.collection("transactions").doc();
-    await txnRef.set({
-      id: txnRef.id, uid, type: "deposit", amount: rounded,
-      currency, phoneNumber, status: "pending",
-      timestamp: new Date().toISOString(),
-    });
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    const collection = intasend.collection();
-    const stkPushRes = await collection.mpesaStkPush({
-      first_name: user.fullName?.split(" ")[0] || "Player",
-      last_name: user.fullName?.split(" ")[1] || "",
-      email: user.email || "",
-      host: req.headers.origin || "https://aviator-full-project.vercel.app", // Use request origin or default
+    transactionRef = db.collection("transactions").doc();
+    const transactionId = transactionRef.id;
+
+    // Create a pending transaction in Firestore
+    await transactionRef.set({
+      id: transactionId,
+      uid,
       amount: rounded,
-      phone_number: phoneNumber,
-      api_ref: txnRef.id, // Use Firestore transaction ID as API reference
+      phoneNumber,
+      country: userDoc.data().country, // Use country from user profile
+      type: "deposit",
+      status: "pending",
+      currency,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
-    if (stkPushRes.status === "success") {
-      await txnRef.update({ intasendInvoiceId: stkPushRes.invoice_id });
-      return res.status(200).json({
-        status: "pending",
-        transactionId: txnRef.id,
-        message: `M-PESA STK push sent to ${phoneNumber}. Please enter your PIN to confirm.`,
+    // Initiate Intasend STK Push
+    const collection = intasend.collection();
+    const response = await collection.mpesaStkPush({
+      phone_number: phoneNumber,
+      api_ref: transactionId, // Use our transaction ID as API reference
+      amount: rounded,
+      currency,
+      details: {
+        name: userDoc.data().fullName || "",
+        email: userDoc.data().email || "",
+      },
+      host: req.headers.origin || "https://aviator-full-project.vercel.app", // Use request origin or default
+    });
+
+    // Update transaction with Intasend details
+    if (response.status === "success") {
+      await transactionRef.update({
+        intasendCollectionId: response.collection_id,
+        intasendInvoiceId: response.invoice_id,
+        intasendStatus: response.status,
+        updatedAt: FieldValue.serverTimestamp(),
       });
+      return res.status(200).json({ message: "STK Push initiated", transactionId, intasendResponse: response });
     } else {
-      throw new Error(stkPushRes.message || "Intasend STK Push failed");
+      throw new Error(response.message || "Intasend STK Push failed");
     }
 
   } catch (e) {
-    console.error("Deposit error:", e.message);
-    if (txnRef) {
-      await txnRef.update({ status: "failed", error: e.message }).catch(() => {});
+    console.error("Deposit API error:", e.message, e.response?.data);
+    if (transactionRef) {
+      await transactionRef.update({ status: "failed", error: e.message }).catch(() => {});
     }
     return res.status(500).json({ error: e.message || "Failed to initiate deposit" });
   }
