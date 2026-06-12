@@ -22,20 +22,21 @@ jobs:
           npm install
           npm run build
         env:
-          # This now uses the secret you created in GitHub!
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel
-        # We use --env flags to push your secrets from GitHub to Vercel automatically
         run: |
           vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} \
             --env INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }} \
             --env INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }} \
             --env INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }} \
-            --env INTASEND_WEBHOOK_SECRET=${{ secrets.INTASEND_WEBHOOK_SECRET }}
+            --env INTASEND_WEBHOOK_SECRET=${{ secrets.INTASEND_WEBHOOK_SECRET }} \
+            --env FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+            --env FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} \
+            --env FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -43,10 +44,11 @@ jobs:
       - name: Deploy Admin Dashboard to Firebase Hosting
         run: |
           npm install -g firebase-tools
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > firebase-service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS="firebase-service-account.json"
           cd admin && npm install && npm run build
           cd ..
-          # This uses the project ID you are about to add to GitHub
-          firebase deploy --only hosting --project ${{ secrets.FIREBASE_PROJECT_ID }}
+          firebase deploy --only hosting:admin --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # GOOGLE_APPLICATION_CREDENTIALS is set above
