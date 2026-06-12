@@ -28,7 +28,6 @@ export function useGame() {
   const [winNotif, setWinNotif] = useState(null);
   const animRef = useRef(null);
   const phaseRef = useRef("waiting");
-  const isLeaderRef = useRef(false);
   const roundTimerRef = useRef(null);
 
   const currency = { KE: "KES", TZ: "TZS", UG: "UGX" }[profile?.country] || "KES";
@@ -45,6 +44,14 @@ export function useGame() {
       setGameState(data);
       const prev = phaseRef.current;
       phaseRef.current = data.phase;
+
+      // Anti-stuck logic: If game has been in "flying" or "crashed" for too long without update, reset it
+      const lastUpdate = data.updatedAt?.toMillis?.() || Date.now();
+      if (data.phase !== "waiting" && (Date.now() - lastUpdate > 30000)) { // 30 seconds stuck in flying/crashed
+         console.warn("Game seems stuck, resetting...");
+         await tryBootstrap(); // Attempt to reset the game state
+         return;
+      }
 
       if (data.phase === "flying" && prev !== "flying") {
         setGamePhase("flying");
@@ -103,7 +110,8 @@ export function useGame() {
       await runTransaction(db, async (t) => {
         const lockSnap = await t.get(lockRef);
         const now = Date.now();
-        if (lockSnap.exists() && now - (lockSnap.data().at || 0) < 8000) {
+        // If lock is older than 10 seconds, ignore it (it's stuck)
+        if (lockSnap.exists() && now - (lockSnap.data().at || 0) < 10000) {
           throw new Error("Another client is starting the round");
         }
         t.set(lockRef, { at: now });
