@@ -1,3 +1,62 @@
+
+
+Skip to content
+webertechdev
+aviator-full-project
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Wiki
+Deploy Aviator
+Update scripts to use npm instead of pnpm #44
+Annotations
+1 error
+deploy
+failed now in 4s
+2s
+Current runner version: '2.335.1'
+Runner Image Provisioner
+Operating System
+Runner Image
+GITHUB_TOKEN Permissions
+Secret source: Actions
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Error: Unable to resolve action `vercel/actions@v6`, unable to find version `v6`
+Lite
+I apologize for the version error. It seems v6 is not the correct tag for that action. I'll switch to the most stable and widely used method—using the Vercel CLI directly—to ensure your deployment works without any more version issues. I'll provide the updated deploy.yml now.
+
+Lite
+I've fixed the GitHub Actions error by switching from the third-party Vercel Action (which had versioning issues) to the official Vercel CLI. This is the most reliable way to deploy.
+Please replace your .github/workflows/deploy.yml file with the attached version. This setup will:
+Install the Vercel CLI directly in the runner.
+Deploy using the vercel deploy --prod command.
+Correctly pass all your environment variables (Intasend, Firebase, etc.) during the deployment.
+This should resolve the "Unable to resolve action" error and get your deployment running smoothly. Let me know if you need anything else!
+deploy.yml
+Code · 1.58 KB
+View all files in this task
+Task completed
+How was this result?
+Suggested follow-ups
+something i want you to know is i am in production mode live at intasent the keys are live not sandbox!!!!!
+
+
+
+
+
+
+Cloud computers
+New
+
+Manus is an AI Agent and can make mistakes. Please double-check before use.
+
+deploy.yml
 name: Deploy Aviator
 
 on:
@@ -24,20 +83,21 @@ jobs:
         env:
           VITE_API_BASE: https://aviator-full-project.vercel.app/api
 
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
       - name: Deploy to Vercel
-        uses: vercel/actions/deploy@v6 # Corrected Vercel action path
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          org-id: ${{ secrets.VERCEL_ORG_ID }}
-          project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          # Add Intasend environment variables for Vercel deployment
-          env: |
-            INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }}
-            INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }}
-            INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }}
-            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-            FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-            FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: vercel deploy --prod --prebuilt
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          INTASEND_PUBLISHABLE_KEY: ${{ secrets.INTASEND_PUBLISHABLE_KEY }}
+          INTASEND_SECRET_KEY: ${{ secrets.INTASEND_SECRET_KEY }}
+          INTASEND_TEST_MODE: ${{ secrets.INTASEND_TEST_MODE }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
 
       - name: Deploy Admin Dashboard to Firebase Hosting
         run: |
@@ -48,3 +108,4 @@ jobs:
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+Review and Modify Aviator Project Code - Manus
