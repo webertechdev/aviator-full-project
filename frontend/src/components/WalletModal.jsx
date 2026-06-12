@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
@@ -7,7 +8,7 @@ const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
 const CURRENCY = { KE: "KES", TZ: "TZS", UG: "UGX" };
 
 export default function WalletModal({ mode, onClose }) {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const currency = CURRENCY[profile?.country] || "KES";
   const min = MIN[currency];
 
@@ -19,11 +20,16 @@ export default function WalletModal({ mode, onClose }) {
   const [txHistory, setTxHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  useEffect(() => {
+    if (showHistory && user) {
+      const q = query(collection(db, "transactions"), where("uid", "==", user.uid), orderBy("timestamp", "desc"), limit(10));
+      const unsub = onSnapshot(q, snap => setTxHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      return unsub;
+    }
+  }, [showHistory, user]);
+
   function loadHistory() {
-    const q = query(collection(db, "transactions"), where("uid", "==", user.uid), orderBy("timestamp", "desc"), limit(10));
-    const unsub = onSnapshot(q, snap => setTxHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    setShowHistory(true);
-    return unsub;
+    setShowHistory(prev => !prev);
   }
 
   const rounded = Math.round(amount / 10) * 10;
@@ -31,8 +37,8 @@ export default function WalletModal({ mode, onClose }) {
   async function handleDeposit() {
     if (rounded < min) { setMessage(`Minimum deposit is ${min.toLocaleString()} ${currency}`); return; }
     setLoading(true);
+    setMessage("");
     try {
-      // Call Vercel serverless API
       const res = await fetch("/api/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,14 +47,7 @@ export default function WalletModal({ mode, onClose }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Deposit failed");
 
-      // Log to Firestore
-      await addDoc(collection(db, "transactions"), {
-        uid: user.uid, type: "deposit", amount: rounded, currency,
-        phoneNumber: phone, status: "pending",
-        transactionId: data.transactionId || null,
-        timestamp: serverTimestamp(),
-      });
-
+      // No need to log to Firestore here, the API handles it.
       setStage("stk-sent");
     } catch (e) {
       setMessage(e.message);
@@ -59,19 +58,25 @@ export default function WalletModal({ mode, onClose }) {
 
   async function handleWithdraw() {
     if (rounded < min) { setMessage(`Minimum withdrawal is ${min.toLocaleString()} ${currency}`); return; }
-    const bal = profile?.balance || 0;
-    if (rounded > bal) { setMessage("Insufficient balance"); return; }
+
+    const currentBalance = profile?.mode === "demo" ? (profile?.demoBalance || 0) : (profile?.balance || 0);
+    if (rounded > currentBalance) { setMessage("Insufficient balance"); return; }
+
     setLoading(true);
+    setMessage("");
     try {
-      // Save withdrawal request — admin must approve
-      await addDoc(collection(db, "transactions"), {
-        uid: user.uid, type: "withdraw", amount: rounded, currency,
-        phoneNumber: phone, status: "pending",
-        fullName: profile?.fullName || "",
-        timestamp: serverTimestamp(),
+      // Call the serverless API for withdrawal request
+      const res = await fetch("/api/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, amount: rounded, currency, phoneNumber: phone }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Withdrawal request failed");
+
       setStage("success");
-      setMessage(`Withdrawal request of ${rounded.toLocaleString()} ${currency} submitted. Pending admin approval.`);
+      setMessage(data.message);
+      await refreshProfile(); // Refresh profile to show updated balance (if held by API)
     } catch (e) {
       setMessage(e.message);
       setStage("error");
