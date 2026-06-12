@@ -17,6 +17,7 @@ const db = getFirestore();
 const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
 const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
 const INTASEND_TEST_MODE = process.env.INTASEND_TEST_MODE === "true";
+const INTASEND_WEBHOOK_SECRET = process.env.INTASEND_WEBHOOK_SECRET; // New environment variable for webhook challenge
 
 const intasend = new IntaSend(
   INTASEND_PUBLISHABLE_KEY,
@@ -25,11 +26,26 @@ const intasend = new IntaSend(
 );
 
 export default async function handler(req, res) {
+  // Handle Intasend webhook challenge (GET request)
+  if (req.method === "GET") {
+    const challenge = req.query.challenge;
+    if (challenge && challenge === INTASEND_WEBHOOK_SECRET) {
+      return res.status(200).send(challenge);
+    } else if (challenge) {
+      console.warn("Intasend webhook challenge mismatch.");
+      return res.status(403).send("Challenge mismatch.");
+    } else {
+      return res.status(400).send("Missing challenge parameter.");
+    }
+  }
+
+  // Only allow POST requests for actual IPN data
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   // Intasend webhooks typically send data in the request body
   const { invoice_id, state, api_ref, tracking_id, transaction_type } = req.body;
-
-  // For deposit webhooks, we expect invoice_id and api_ref (our transaction ID)
-  // For withdrawal webhooks (B2C), we expect tracking_id and transaction_type
 
   try {
     let txnRef;
@@ -78,12 +94,9 @@ export default async function handler(req, res) {
     // For successful withdrawals, the balance would have been decremented already (held)
     // If a withdrawal fails, we need to refund the user.
     if (isWithdrawal && newStatus === "failed" && txn.type === "withdraw") {
-      // Only refund if the transaction was previously marked as 'approved' or 'pending' for payout
+      // Only refund if the transaction was previously marked as \'approved\' or \'processing\' for payout
       // and the balance was already decremented.
-      // This logic assumes the balance is decremented at the time of admin approval.
-      // If the original withdrawal request decremented the balance, then refund here.
-      // Given the new flow, balance is decremented on admin approval, so if Intasend fails, we refund.
-      if (txn.status === "approved" || txn.status === "processing") { // Assuming 'approved' means balance was held
+      if (txn.status === "approved" || txn.status === "processing") { // Assuming \'approved\' means balance was held
         await db.collection("users").doc(txn.uid).update({
           balance: FieldValue.increment(txn.amount),
         });
