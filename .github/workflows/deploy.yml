@@ -22,28 +22,30 @@ jobs:
           npm install
           npm run build
         env:
-          VITE_API_BASE: https://aviator-full-project.vercel.app/api
+          # This now uses the secret you created in GitHub!
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel
-        run: vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
+        # We use --env flags to push your secrets from GitHub to Vercel automatically
+        run: |
+          vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} \
+            --env INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }} \
+            --env INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }} \
+            --env INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }} \
+            --env INTASEND_WEBHOOK_SECRET=${{ secrets.INTASEND_WEBHOOK_SECRET }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          INTASEND_PUBLISHABLE_KEY: ${{ secrets.INTASEND_PUBLISHABLE_KEY }}
-          INTASEND_SECRET_KEY: ${{ secrets.INTASEND_SECRET_KEY }}
-          INTASEND_TEST_MODE: ${{ secrets.INTASEND_TEST_MODE }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
 
       - name: Deploy Admin Dashboard to Firebase Hosting
         run: |
           npm install -g firebase-tools
           cd admin && npm install && npm run build
           cd ..
+          # This uses the project ID you are about to add to GitHub
           firebase deploy --only hosting --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
