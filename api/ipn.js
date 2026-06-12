@@ -1,18 +1,24 @@
-
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import IntaSend from "intasend-node";
 
-if (!getApps().length) {
+// Robust Firebase Initialization
+function getFirebaseAdmin() {
+  if (getApps().length) return getFirestore();
+  
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key.");
+  }
+
   initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
+  return getFirestore();
 }
-const db = getFirestore();
 
 const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
 const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
@@ -48,6 +54,7 @@ export default async function handler(req, res) {
   const { invoice_id, state, api_ref, tracking_id, transaction_type } = req.body;
 
   try {
+    const db = getFirebaseAdmin(); // Initialize Firebase Admin here
     let txnRef;
     let isDeposit = false;
     let isWithdrawal = false;
