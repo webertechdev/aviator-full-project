@@ -1,11 +1,7 @@
-# ✈️ AVIATOR — Full Stack Game Platform
-### React + Firebase + Vercel Serverless | M-PESA Payments via Pesapal
-
----
-
-## 🗂️ PROJECT ARCHITECTURE
-
-```
+✈️ AVIATOR — Full Stack Game Platform
+React + Firebase + Vercel Serverless | M-PESA Payments via Pesapal
+🗂️ PROJECT ARCHITECTURE
+Plain Text
 aviator-full-project/                              ← GitHub repo root
 │
 ├── 📁 frontend/                      ← Player Game UI  (→ Vercel)
@@ -66,13 +62,8 @@ aviator-full-project/                              ← GitHub repo root
 ├── .env.example                      ← Environment variables template
 ├── .gitignore
 └── README.md
-```
-
----
-
-## 🚀 HOW IT WORKS (No Cloud Functions Needed)
-
-```
+🚀 HOW IT WORKS (No Cloud Functions Needed)
+Plain Text
 ┌─────────────┐     Firestore     ┌──────────────────────────┐
 │  Browser A  │ ←─ onSnapshot ──► │  gameState/current       │
 │  (Player)   │                   │  { phase, multiplier,    │
@@ -101,138 +92,122 @@ aviator-full-project/                              ← GitHub repo root
                                     │  /api/ipn                │
                                     │  Credits user balance    │
                                     └──────────────────────────┘
-```
-
----
-
-## 📋 SETUP GUIDE — Step by Step
-
-### STEP 1 — Create GitHub Repository
-
-1. Go to **github.com** → Click **New repository**
-2. Name it `aviator`
-3. Set to **Private**
-4. Click **Create repository**
-5. Upload ALL files from this project maintaining the exact folder structure
-
----
-
-### STEP 2 — Firebase Setup
-
-1. Go to **console.firebase.google.com** → Select project `aviator-6827d`
-2. Enable **Authentication** → Sign-in method → **Email/Password** → Enable
-3. Enable **Firestore Database** → Create database → **Production mode**
-4. Go to **Project Settings** → **Service Accounts** → **Generate new private key**
-   - This downloads a JSON file — keep it safe, you need it for Vercel
-
----
-
-### STEP 3 — Deploy Firestore Rules
-
+📋 SETUP GUIDE — Step by Step
+STEP 1 — Create GitHub Repository
+Go to github.com → Click New repository
+Name it aviator
+Set to Private
+Click Create repository
+Upload ALL files from this project maintaining the exact folder structure
+STEP 2 — Firebase Setup
+Go to console.firebase.google.com → Select project aviator-6827d
+Enable Authentication → Sign-in method → Email/Password → Enable
+Enable Firestore Database → Create database → Production mode
+Go to Project Settings → Service Accounts → Generate new private key
+This downloads a JSON file — keep it safe, you need it for Vercel
+STEP 3 — Deploy Firestore Rules
 In Firebase console:
-1. Go to **Firestore** → **Rules** tab
-2. Copy the contents of `firestore.rules` and paste it in
-3. Click **Publish**
-4. Go to **Indexes** tab → **Composite** → create these indexes:
-   - Collection `bets`: fields `uid ASC` + `timestamp DESC`
-   - Collection `bets`: fields `result ASC` + `winnings DESC`
-   - Collection `transactions`: fields `uid ASC` + `timestamp DESC`
-
----
-
-### STEP 4 — Deploy to Vercel (Frontend + API)
-
-1. Go to **vercel.com** → **Add New Project** → Import from GitHub
-2. Select your `aviator` repo
-3. Set these settings:
-   - **Framework Preset**: Other
-   - **Build Command**: `cd frontend && npm install && npm run build`
-   - **Output Directory**: `frontend/dist`
-   - **Install Command**: `npm install`
-4. Add these **Environment Variables** (from your Firebase service account JSON):
-
-| Variable Name | Value |
-|---|---|
-| `FIREBASE_PROJECT_ID` | `aviator-6827d` |
-| `FIREBASE_CLIENT_EMAIL` | (from service account JSON) |
-| `FIREBASE_PRIVATE_KEY` | (from service account JSON — full key with `\n`) |
-| `PESAPAL_CONSUMER_KEY` | `KLg8UrH2NzfTvfeC4DuDXBQo2OPohmgH` |
-| `PESAPAL_CONSUMER_SECRET` | `EA1hRGKSXVrIdahZmOLE8uG3ZK8=` |
-| `PESAPAL_BASE_URL` | `https://cybqa.pesapal.com/pesapalv3` |
-
-5. Click **Deploy**
-6. Your game URL will be something like `https://aviator-xyz.vercel.app`
-
----
-
-### STEP 5 — Deploy Admin Dashboard to Firebase Hosting
-
-1. Install Firebase CLI: `npm install -g firebase-tools`
-2. Run: `firebase login`
-3. In the project root run:
-```bash
+Go to Firestore → Rules tab
+Copy the contents of firestore.rules and paste it in
+Click Publish
+Go to Indexes tab → Composite → create these indexes:
+Collection bets: fields uid ASC + timestamp DESC
+Collection bets: fields result ASC + winnings DESC
+Collection transactions: fields uid ASC + timestamp DESC
+STEP 4 — Deploy to Vercel (Frontend + API)
+Go to vercel.com → Add New Project → Import from GitHub
+Select your aviator repo
+Set these settings:
+Framework Preset: Other
+Build Command: cd frontend && npm install && npm run build
+Output Directory: frontend/dist
+Install Command: npm install
+Add these Environment Variables (from your Firebase service account JSON):
+Variable Name
+Value
+FIREBASE_PROJECT_ID
+aviator-6827d
+FIREBASE_CLIENT_EMAIL
+(from service account JSON)
+FIREBASE_PRIVATE_KEY
+(from service account JSON — full key with \n)
+PESAPAL_CONSUMER_KEY
+KLg8UrH2NzfTvfeC4DuDXBQo2OPohmgH
+PESAPAL_CONSUMER_SECRET
+EA1hRGKSXVrIdahZmOLE8uG3ZK8=
+PESAPAL_BASE_URL
+https://cybqa.pesapal.com/pesapalv3
+Click Deploy
+Your game URL will be something like https://aviator-xyz.vercel.app
+STEP 5 — Deploy Admin Dashboard to Firebase Hosting
+Install Firebase CLI: npm install -g firebase-tools
+Run: firebase login
+In the project root run:
+Bash
 cd admin && npm install && npm run build
 cd ..
 firebase deploy --only hosting --project aviator-6827d
-```
-4. Admin dashboard URL: `https://aviator-6827d.web.app`
-
----
-
-### STEP 6 — Create Your Admin Account
-
-1. Register on the game frontend normally
-2. Go to **Firebase Console** → **Firestore** → **users** collection
-3. Find your user document
-4. Click **Edit** → Add field:
-   - Field: `role` | Type: `string` | Value: `admin`
-5. Click **Save**
-6. Now go to `https://aviator-6827d.web.app` and log in with your email
-
----
-
-### STEP 7 — GitHub Actions Secrets (for auto-deploy)
-
-In GitHub repo → **Settings** → **Secrets and variables** → **Actions**:
-
-| Secret Name | Where to get it |
-|---|---|
-| `VERCEL_TOKEN` | vercel.com → Settings → Tokens |
-| `VERCEL_ORG_ID` | vercel.com → Settings → General → Team ID |
-| `VERCEL_PROJECT_ID` | Vercel project → Settings → General |
-| `FIREBASE_TOKEN` | Run `firebase login:ci` locally |
-| `FIREBASE_SERVICE_ACCOUNT` | Firebase → Project Settings → Service Accounts → JSON key |
-
----
-
-## 🌍 COUNTRIES & CURRENCIES
-
-| Country | Currency | Min Deposit | Min Withdraw |
-|---|---|---|---|
-| 🇰🇪 Kenya | KES | 100 | 100 |
-| 🇹🇿 Tanzania | TZS | 10,000 | 10,000 |
-| 🇺🇬 Uganda | UGX | 3,000 | 3,000 |
-
----
-
-## 🎮 GAME FEATURES
-
-| Feature | Details |
-|---|---|
-| Demo Account | 50,000 KES free — same rounds as real |
-| Real Account | Live M-PESA deposits & withdrawals |
-| Dual Betting | Two independent bet slots per player |
-| Auto Cashout | Set a target multiplier per slot |
-| Live Bets Feed | All Bets / Previous / Top tabs |
-| Live Chat | Admin-controlled per user |
-| Dark/Light Mode | Toggle in top nav |
-| Round History | Scrolling multiplier badges in nav |
-
----
-
-## 💸 WITHDRAWAL FLOW
-
-```
+Admin dashboard URL: https://aviator-6827d.web.app
+STEP 6 — Create Your Admin Account
+Register on the game frontend normally
+Go to Firebase Console → Firestore → users collection
+Find your user document
+Click Edit → Add field:
+Field: role | Type: string | Value: admin
+Click Save
+Now go to https://aviator-6827d.web.app and log in with your email
+STEP 7 — GitHub Actions Secrets (for auto-deploy )
+In GitHub repo → Settings → Secrets and variables → Actions:
+Secret Name
+Where to get it
+VERCEL_TOKEN
+vercel.com → Settings → Tokens
+VERCEL_ORG_ID
+vercel.com → Settings → General → Team ID
+VERCEL_PROJECT_ID
+Vercel project → Settings → General
+FIREBASE_TOKEN
+Run firebase login:ci locally
+FIREBASE_SERVICE_ACCOUNT
+Firebase → Project Settings → Service Accounts → JSON key
+🌍 COUNTRIES & CURRENCIES
+Country
+Currency
+Min Deposit
+Min Withdraw
+🇰🇪 Kenya
+KES
+100
+100
+🇹🇿 Tanzania
+TZS
+10,000
+10,000
+🇺🇬 Uganda
+UGX
+3,000
+3,000
+🎮 GAME FEATURES
+Feature
+Details
+Demo Account
+50,000 KES free — same rounds as real
+Real Account
+Live M-PESA deposits & withdrawals
+Dual Betting
+Two independent bet slots per player
+Auto Cashout
+Set a target multiplier per slot
+Live Bets Feed
+All Bets / Previous / Top tabs
+Live Chat
+Admin-controlled per user
+Dark/Light Mode
+Toggle in top nav
+Round History
+Scrolling multiplier badges in nav
+💸 WITHDRAWAL FLOW
+Plain Text
 Player requests withdrawal
         ↓
 Balance held (deducted immediately)
@@ -248,29 +223,26 @@ Admin sees it in dashboard → Withdrawals tab
       └─────────────────────┘
         ↓
 Player sees status update in Transaction History
-```
-
----
-
-## ⚠️ GOING LIVE CHECKLIST
-
-- [ ] Change `PESAPAL_BASE_URL` to `https://www.pesapal.com/api` (production)
-- [ ] Sign Pesapal contract (required for settlements)
-- [ ] Set your Vercel domain in Firestore Auth → Authorized domains
-- [ ] Enable Firebase App Check for security
-- [ ] Test a real deposit with a small amount
-- [ ] Test a full withdrawal approval flow
-- [ ] Ensure `gameState/current` document exists in Firestore (created automatically on first player visit)
-
----
-
-## 🔥 FIRESTORE COLLECTIONS
-
-| Collection | Fields |
-|---|---|
-| `users` | uid, fullName, email, phone, country, balance, demoBalance, mode, role, chatEnabled |
-| `transactions` | id, uid, type, amount, currency, phoneNumber, status, adminNote, timestamp |
-| `bets` | id, uid, roundId, stake, autoCashout, result, cashoutMultiplier, winnings, mode |
-| `rounds` | id, crashMultiplier, phase, startTime, endTime |
-| `gameState` | current → { phase, roundId, crashMultiplier, startTime } |
-| `chat` | uid, name, text, createdAt |
+⚠️ GOING LIVE CHECKLIST
+ Change PESAPAL_BASE_URL to https://www.pesapal.com/api (production )
+ Sign Pesapal contract (required for settlements)
+ Set your Vercel domain in Firestore Auth → Authorized domains
+ Enable Firebase App Check for security
+ Test a real deposit with a small amount
+ Test a full withdrawal approval flow
+ Ensure gameState/current document exists in Firestore (created automatically on first player visit)
+🔥 FIRESTORE COLLECTIONS
+Collection
+Fields
+users
+uid, fullName, email, phone, country, balance, demoBalance, mode, role, chatEnabled
+transactions
+id, uid, type, amount, currency, phoneNumber, status, adminNote, timestamp
+bets
+id, uid, roundId, stake, autoCashout, result, cashoutMultiplier, winnings, mode
+rounds
+id, crashMultiplier, phase, startTime, endTime
+gameState
+current → { phase, roundId, crashMultiplier, startTime }
+chat
+uid, name, text, createdAt
