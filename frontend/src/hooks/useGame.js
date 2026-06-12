@@ -38,7 +38,6 @@ export function useGame() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "gameState", "current"), async (snap) => {
       if (!snap.exists()) {
-        // Bootstrap: first user creates the initial state
         await tryBootstrap();
         return;
       }
@@ -55,9 +54,7 @@ export function useGame() {
         setMultiplier(data.crashMultiplier);
         cancelAnimationFrame(animRef.current);
         setPastMultipliers(p => [data.crashMultiplier, ...p].slice(0, 25));
-        // Auto-settle lost bets
         settleLostBets(data.roundId);
-        // Wait then trigger next round
         roundTimerRef.current = setTimeout(() => maybeStartNextRound(), 5000);
       } else if (data.phase === "waiting") {
         setGamePhase("waiting");
@@ -101,7 +98,6 @@ export function useGame() {
   }
 
   async function maybeStartNextRound() {
-    // Use a lock doc to prevent multiple clients starting simultaneously
     const lockRef = doc(db, "gameState", "lock");
     try {
       await runTransaction(db, async (t) => {
@@ -112,11 +108,8 @@ export function useGame() {
         }
         t.set(lockRef, { at: now });
       });
-      // We won the lock — start the round
       startNewRound();
-    } catch {
-      // Another tab/client is handling it
-    }
+    } catch {}
   }
 
   async function startNewRound() {
@@ -134,7 +127,6 @@ export function useGame() {
       startTime: serverTimestamp(), updatedAt: serverTimestamp(),
     });
 
-    // Schedule crash
     const duration = Math.ceil((Math.log(crashMultiplier) / 0.06) * 1000);
     roundTimerRef.current = setTimeout(async () => {
       await setDoc(doc(db, "gameState", "current"), {
@@ -173,28 +165,35 @@ export function useGame() {
   }
 
   const placeBet = useCallback(async (slotIdx, stake, autoCashout) => {
-    if (!user || gamePhase !== "waiting") return setError("Wait for next round");
-    if (stake > activeBalance) return setError("Insufficient balance");
-    if (!gameState?.roundId) return setError("Round not ready yet");
+    if (!user || gamePhase !== "waiting")
+      return setError("Wait for next round");
+
+    if (stake > activeBalance)
+      return setError("Insufficient balance");
+
+    if (!gameState)
+      return setError("Game unavailable");
+
     setError(null);
 
     const field = profile?.mode === "demo" ? "demoBalance" : "balance";
+
     try {
-      await runTransaction(db, async (t) => {
+      const betId = await runTransaction(db, async (t) => {
         const uRef = doc(db, "users", user.uid);
         const uSnap = await t.get(uRef);
+
         const bal = uSnap.data()[field];
         if (stake > bal) throw new Error("Insufficient balance");
+
         const betRef = doc(collection(db, "bets"));
         t.update(uRef, { [field]: bal - stake });
         t.set(betRef, {
           id: betRef.id,
           uid: user.uid,
           fullName: profile?.fullName || "Player",
-          email: profile?.email,
-
-  // Always attach the bet to the active round
-          roundId: gameState?.roundId,
+          email: profile?.email || "",
+          roundId: gameState?.roundId || null,
           stake,
           autoCashout: autoCashout || null,
           result: "pending",
@@ -204,61 +203,66 @@ export function useGame() {
         });
         return betRef.id;
       });
+
       setBets(prev => {
         const next = [...prev];
-       next[slotIdx] = {
-        id: betId,
-        stake,
-        autoCashout,
-        slotIdx,
-        cashedOut: false
-};
+        next[slotIdx] = {
+          id: betId,
+          stake,
+          autoCashout,
+          slotIdx,
+          cashedOut: false,
+          lost: false,
+        };
         return next;
       });
+
       await refreshProfile();
-    } catch (e) { setError(e.message); }
+    } catch (e) {
+      setError(e.message);
+    }
   }, [user, profile, gamePhase, gameState, activeBalance, currency]);
 
   async function doCashout(slotIdx, bet, currentMult) {
-  if (!bet || bet.cashedOut) return;
+    if (!bet || bet.cashedOut) return;
 
-  setBets(prev => {
-    const next = [...prev];
-    if (next[slotIdx]) next[slotIdx] = { ...next[slotIdx], cashedOut: true };
-    return next;
-  });
-
-  const winnings = parseFloat((bet.stake * currentMult).toFixed(2));
-  const field = profile?.mode === "demo" ? "demoBalance" : "balance";
-
-  try {
-    await runTransaction(db, async (t) => {
-      const uRef = doc(db, "users", user.uid);
-      const uSnap = await t.get(uRef);
-
-      t.update(uRef, {
-        [field]: (uSnap.data()[field] || 0) + winnings,
-      });
+    setBets(prev => {
+      const next = [...prev];
+      if (next[slotIdx]) next[slotIdx] = { ...next[slotIdx], cashedOut: true };
+      return next;
     });
 
-    if (bet.id) {
-      await updateDoc(doc(db, "bets", bet.id), {
-        result: "won",
-        cashedOut: true,
-        cashoutMultiplier: currentMult,
-        winnings,
-        cashedOutAt: serverTimestamp(),
+    const winnings = parseFloat((bet.stake * currentMult).toFixed(2));
+    const field = profile?.mode === "demo" ? "demoBalance" : "balance";
+
+    try {
+      await runTransaction(db, async (t) => {
+        const uRef = doc(db, "users", user.uid);
+        const uSnap = await t.get(uRef);
+
+        t.update(uRef, {
+          [field]: (uSnap.data()[field] || 0) + winnings,
+        });
       });
+
+      if (bet.id) {
+        await updateDoc(doc(db, "bets", bet.id), {
+          result: "won",
+          cashedOut: true,
+          cashoutMultiplier: currentMult,
+          winnings,
+          cashedOutAt: serverTimestamp(),
+        });
+      }
+
+      setWinNotif({ slotIdx, winnings, mult: currentMult });
+      setTimeout(() => setWinNotif(null), 3000);
+
+      await refreshProfile();
+    } catch (err) {
+      console.error("Cashout error:", err);
     }
-
-    setWinNotif({ slotIdx, winnings, mult: currentMult });
-    setTimeout(() => setWinNotif(null), 3000);
-
-    await refreshProfile();
-  } catch (err) {
-    console.error("Cashout error:", err);
   }
-}
 
   const cashout = useCallback(async (slotIdx) => {
     const bet = bets[slotIdx];
@@ -267,8 +271,17 @@ export function useGame() {
   }, [bets, multiplier, gamePhase]);
 
   return {
-    gameState, multiplier, gamePhase, bets, pastMultipliers,
-    liveBets, error, winNotif, currency, activeBalance,
-    placeBet, cashout,
+    gameState,
+    multiplier,
+    gamePhase,
+    bets,
+    pastMultipliers,
+    liveBets,
+    error,
+    winNotif,
+    currency,
+    activeBalance,
+    placeBet,
+    cashout,
   };
 }
