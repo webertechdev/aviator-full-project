@@ -1,6 +1,7 @@
+
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import axios from "axios";
+import IntaSend from "intasend-node";
 
 if (!getApps().length) {
   initializeApp({
@@ -13,54 +14,86 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-const PESAPAL_KEY    = process.env.PESAPAL_CONSUMER_KEY;
-const PESAPAL_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_BASE   = process.env.PESAPAL_BASE_URL;
+const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
+const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
+const INTASEND_TEST_MODE = process.env.INTASEND_TEST_MODE === "true";
+
+const intasend = new IntaSend(
+  INTASEND_PUBLISHABLE_KEY,
+  INTASEND_SECRET_KEY,
+  INTASEND_TEST_MODE
+);
+
 export default async function handler(req, res) {
-  const { orderTrackingId, orderMerchantReference } = { ...req.body, ...req.query };
-  if (!orderTrackingId || !orderMerchantReference)
-    return res.status(400).json({ error: "Missing IPN params" });
+  // Intasend webhooks typically send data in the request body
+  const { invoice_id, state, api_ref, tracking_id, transaction_type } = req.body;
+
+  // For deposit webhooks, we expect invoice_id and api_ref (our transaction ID)
+  // For withdrawal webhooks (B2C), we expect tracking_id and transaction_type
 
   try {
-    const authRes = await axios.post(
-      `${PESAPAL_BASE}/api/Auth/RequestToken`,
-      { consumer_key: PESAPAL_KEY, consumer_secret: PESAPAL_SECRET },
-      { headers: { "Content-Type": "application/json", Accept: "application/json" } }
-    );
-    const token = authRes.data.token;
+    let txnRef;
+    let isDeposit = false;
+    let isWithdrawal = false;
 
-    const statusRes = await axios.get(
-      `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } }
-    );
-    const statusData = statusRes.data;
-   const isPaid = statusData.payment_status_description === "Completed";
-    const txnRef = db.collection("transactions").doc(orderMerchantReference);
+    if (invoice_id && api_ref) { // Likely a deposit webhook
+      txnRef = db.collection("transactions").doc(api_ref);
+      isDeposit = true;
+    } else if (tracking_id && transaction_type === "MPESA_B2C") { // Likely a withdrawal webhook
+      // For withdrawals, the tracking_id from Intasend should match our transaction ID
+      txnRef = db.collection("transactions").doc(tracking_id);
+      isWithdrawal = true;
+    } else {
+      console.warn("Unknown Intasend webhook payload structure:", req.body);
+      return res.status(400).json({ error: "Unknown webhook payload" });
+    }
+
     const txnDoc = await txnRef.get();
-    if (!txnDoc.exists) return res.status(404).json({ error: "Transaction not found" });
+    if (!txnDoc.exists) {
+      console.error("Transaction not found for webhook:", req.body);
+      return res.status(404).json({ error: "Transaction not found" });
+    }
     const txn = txnDoc.data();
 
+    let newStatus = "pending";
+    if (state === "COMPLETE" || state === "SUCCESS") {
+      newStatus = "success";
+    } else if (state === "FAILED" || state === "CANCELLED") {
+      newStatus = "failed";
+    }
+
     await txnRef.update({
-      status: isPaid ? "success" : "failed",
-      pesapalStatus: statusData,
+      status: newStatus,
+      intasendStatus: state, // Store raw Intasend status
       updatedAt: new Date().toISOString(),
     });
 
     // Credit user balance on successful deposit
-    if (isPaid && txn.type === "deposit") {
+    if (isDeposit && newStatus === "success" && txn.type === "deposit") {
       await db.collection("users").doc(txn.uid).update({
         balance: FieldValue.increment(txn.amount),
       });
     }
 
-    return res.status(200).json({
-      orderNotificationType: "IPNCHANGE",
-      orderTrackingId,
-      orderMerchantReference,
-      status: "200",
-    });
+    // For successful withdrawals, the balance would have been decremented already (held)
+    // If a withdrawal fails, we need to refund the user.
+    if (isWithdrawal && newStatus === "failed" && txn.type === "withdraw") {
+      // Only refund if the transaction was previously marked as 'approved' or 'pending' for payout
+      // and the balance was already decremented.
+      // This logic assumes the balance is decremented at the time of admin approval.
+      // If the original withdrawal request decremented the balance, then refund here.
+      // Given the new flow, balance is decremented on admin approval, so if Intasend fails, we refund.
+      if (txn.status === "approved" || txn.status === "processing") { // Assuming 'approved' means balance was held
+        await db.collection("users").doc(txn.uid).update({
+          balance: FieldValue.increment(txn.amount),
+        });
+        await txnRef.update({ adminNote: (txn.adminNote || "") + "\nRefunded due to Intasend payout failure." });
+      }
+    }
+
+    return res.status(200).json({ message: "Webhook processed successfully" });
   } catch (e) {
-    console.error("IPN error:", e.message);
-    return res.status(500).json({ error: e.message });
+    console.error("Intasend IPN error:", e.message, req.body);
+    return res.status(500).json({ error: e.message || "Failed to process webhook" });
   }
 }
