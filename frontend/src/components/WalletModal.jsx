@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
 const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
@@ -44,10 +43,16 @@ export default function WalletModal({ mode, onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: user.uid, amount: rounded, currency, phoneNumber: phone }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Deposit failed");
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 50)}...`);
+      }
 
-      // No need to log to Firestore here, the API handles it.
+      if (!res.ok) throw new Error(data.error || "Deposit failed");
       setStage("stk-sent");
     } catch (e) {
       setMessage(e.message);
@@ -65,18 +70,25 @@ export default function WalletModal({ mode, onClose }) {
     setLoading(true);
     setMessage("");
     try {
-      // Call the serverless API for withdrawal request
       const res = await fetch("/api/withdraw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: user.uid, amount: rounded, currency, phoneNumber: phone }),
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 50)}...`);
+      }
+
       if (!res.ok) throw new Error(data.error || "Withdrawal request failed");
 
       setStage("success");
       setMessage(data.message);
-      await refreshProfile(); // Refresh profile to show updated balance (if held by API)
+      await refreshProfile();
     } catch (e) {
       setMessage(e.message);
       setStage("error");
@@ -172,7 +184,6 @@ export default function WalletModal({ mode, onClose }) {
           </div>
         )}
 
-        {/* Transaction history toggle */}
         <button className="history-toggle" onClick={loadHistory}>
           {showHistory ? "Hide" : "View"} Transaction History
         </button>
