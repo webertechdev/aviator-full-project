@@ -3,10 +3,22 @@ import { useEffect, useRef } from "react";
 export default function GameCanvas({ multiplier, gamePhase }) {
   const canvasRef = useRef(null);
   const historyRef = useRef([]);
-  const planeRef = useRef({ x: 0, y: 0 });
+  const planeRef = useRef({ x: 0, y: 0, rotation: 0 });
+  const planeImageRef = useRef(new Image());
 
   useEffect(() => {
-    if (gamePhase === "waiting") historyRef.current = [];
+    // Load plane image once
+    planeImageRef.current.src = "/plane.png"; // Assuming plane.png is in public folder
+    planeImageRef.current.onload = () => {
+      draw(); // Redraw canvas once image is loaded
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gamePhase === "waiting") {
+      historyRef.current = [];
+      planeRef.current = { x: 0, y: 0, rotation: 0 };
+    }
     if (gamePhase === "flying" || gamePhase === "crashed") {
       historyRef.current.push(multiplier);
     }
@@ -65,16 +77,43 @@ export default function GameCanvas({ multiplier, gamePhase }) {
       return H - padB - norm * drawH;
     }
 
-    const lastX = toX(history.length - 1);
-    const lastY = toY(history[history.length - 1]);
-    planeRef.current = { x: lastX, y: lastY };
+    // Calculate control points for smoother curve
+    const getControlPoint = (p1, p2) => ({
+      x: p1.x + (p2.x - p1.x) * 0.5,
+      y: p1.y + (p2.y - p1.y) * 0.5,
+    });
+
+    // Curve line
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(history[0]));
+    for (let i = 0; i < history.length - 1; i++) {
+      const p1 = { x: toX(i), y: toY(history[i]) };
+      const p2 = { x: toX(i + 1), y: toY(history[i + 1]) };
+      const cp = getControlPoint(p1, p2);
+      ctx.quadraticCurveTo(p1.x, p1.y, cp.x, cp.y);
+    }
+    ctx.lineTo(toX(history.length - 1), toY(history[history.length - 1]));
+
+    ctx.strokeStyle = gamePhase === "crashed" ? "#cc0000" : "#e8003d";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.stroke();
 
     // Fill under curve
+    ctx.save();
     ctx.beginPath();
     ctx.moveTo(padL, H - padB);
-    history.forEach((m, i) => ctx.lineTo(toX(i), toY(m)));
-    ctx.lineTo(lastX, H - padB);
+    ctx.lineTo(toX(0), toY(history[0]));
+    for (let i = 0; i < history.length - 1; i++) {
+      const p1 = { x: toX(i), y: toY(history[i]) };
+      const p2 = { x: toX(i + 1), y: toY(history[i + 1]) };
+      const cp = getControlPoint(p1, p2);
+      ctx.quadraticCurveTo(p1.x, p1.y, cp.x, cp.y);
+    }
+    ctx.lineTo(toX(history.length - 1), toY(history[history.length - 1]));
+    ctx.lineTo(toX(history.length - 1), H - padB);
     ctx.closePath();
+
     const fillGrad = ctx.createLinearGradient(0, padT, 0, H - padB);
     if (gamePhase === "crashed") {
       fillGrad.addColorStop(0, "rgba(220,30,30,0.5)");
@@ -85,43 +124,37 @@ export default function GameCanvas({ multiplier, gamePhase }) {
     }
     ctx.fillStyle = fillGrad;
     ctx.fill();
+    ctx.restore();
 
-    // Curve line
-    ctx.beginPath();
-    history.forEach((m, i) => {
-      if (i === 0) ctx.moveTo(toX(i), toY(m));
-      else ctx.lineTo(toX(i), toY(m));
-    });
-    ctx.strokeStyle = gamePhase === "crashed" ? "#cc0000" : "#e8003d";
-    ctx.lineWidth = 3;
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    // Plane image
+    const planeImg = planeImageRef.current;
+    const planeSize = 40; // Adjust size as needed
+    const planeOffset = 10; // Offset to center the image
 
-    // Plane (red ✈ like Betika)
-    if (gamePhase !== "crashed") {
+    const lastX = toX(history.length - 1);
+    const lastY = toY(history[history.length - 1]);
+
+    let rotation = 0;
+    if (history.length >= 2) {
+      const prevX = toX(history.length - 2);
+      const prevY = toY(history.length - 2);
+      const angle = Math.atan2(lastY - prevY, lastX - prevX);
+      rotation = angle; // Plane faces direction of movement
+    }
+
+    planeRef.current = { x: lastX, y: lastY, rotation };
+
+    if (planeImg.complete && gamePhase !== "crashed") {
       ctx.save();
-      ctx.font = "28px serif";
-      ctx.fillStyle = "#e8003d";
-      ctx.shadowColor = "#ff0044";
-      ctx.shadowBlur = 20;
-      // Slight angle based on curve direction
-      if (history.length >= 3) {
-        const dy = toY(history[history.length - 1]) - toY(history[history.length - 3]);
-        const dx = toX(history.length - 1) - toX(history.length - 3);
-        ctx.translate(lastX, lastY - 14);
-        ctx.rotate(Math.atan2(dy, dx) - 0.2);
-        ctx.scale(-1, 1);
-        ctx.fillText("✈", -14, 0);
-      } else {
-        ctx.fillText("✈", lastX, lastY - 14);
-      }
-      ctx.restore();
-    } else {
-      ctx.save();
-      ctx.font = "28px serif";
       ctx.translate(lastX, lastY);
-      ctx.rotate(Math.PI / 3);
-      ctx.fillText("✈", -14, 0);
+      ctx.rotate(rotation);
+      ctx.drawImage(planeImg, -planeSize / 2, -planeSize / 2 - planeOffset, planeSize, planeSize);
+      ctx.restore();
+    } else if (gamePhase === "crashed") {
+      ctx.save();
+      ctx.translate(lastX, lastY);
+      ctx.rotate(Math.PI / 2); // Rotate 90 degrees down for crashed state
+      ctx.drawImage(planeImg, -planeSize / 2, -planeSize / 2 - planeOffset, planeSize, planeSize);
       ctx.restore();
     }
 
