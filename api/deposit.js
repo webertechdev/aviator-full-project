@@ -2,16 +2,24 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import IntaSend from "intasend-node";
 
-if (!getApps().length) {
+// Robust Firebase Initialization
+function getFirebaseAdmin() {
+  if (getApps().length) return getFirestore();
+  
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Decode the base64 encoded private key
+  const privateKey = Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key_base64.");
+  }
+
   initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
+  return getFirestore();
 }
-const db = getFirestore();
 
 const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
 const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
@@ -56,6 +64,8 @@ export default async function handler(req, res) {
 
   let transactionRef;
   try {
+    const db = getFirebaseAdmin(); // Use the robust initialization
+
     const userRef = db.collection("users").doc(uid);
     const userDoc = await userRef.get();
 
