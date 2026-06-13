@@ -8,10 +8,11 @@ function getFirebaseAdmin() {
   
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  // Decode the base64 encoded private key
+  const privateKey = Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key.");
+    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key_base64.");
   }
 
   initializeApp({
@@ -32,64 +33,78 @@ const intasend = new IntaSend(
 );
 
 export default async function handler(req, res) {
-  // Handle Intasend webhook challenge (GET request)
-  if (req.method === "GET") {
-    const challenge = req.query.challenge;
-    if (challenge && challenge === INTASEND_WEBHOOK_SECRET) {
-      return res.status(200).send(challenge);
-    } else if (challenge) {
-      console.warn("Intasend webhook challenge mismatch.");
-      return res.status(403).send("Challenge mismatch.");
-    } else {
-      return res.status(400).send("Missing challenge parameter.");
-    }
-  }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
 
-  // Only allow POST requests for actual IPN data
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Intasend webhooks typically send data in the request body
-  const { invoice_id, state, api_ref, tracking_id, transaction_type } = req.body;
-
   try {
-    const db = getFirebaseAdmin(); // Initialize Firebase Admin here
-    let txnRef;
-    let isDeposit = false;
-    let isWithdrawal = false;
+    const db = getFirebaseAdmin();
 
-    if (invoice_id && api_ref) { // Likely a deposit webhook
-      txnRef = db.collection("transactions").doc(api_ref);
-      isDeposit = true;
-    } else if (tracking_id && transaction_type === "MPESA_B2C") { // Likely a withdrawal webhook
-      // For withdrawals, the tracking_id from Intasend should match our transaction ID
-      txnRef = db.collection("transactions").doc(tracking_id);
-      isWithdrawal = true;
-    } else {
-      console.warn("Unknown Intasend webhook payload structure:", req.body);
-      return res.status(400).json({ error: "Unknown webhook payload" });
+    // 1. Webhook Challenge Verification
+    if (req.body.event === "INTASEND_CHALLENGE") {
+      if (req.body.challenge === INTASEND_WEBHOOK_SECRET) {
+        return res.status(200).json({ status: "success", message: "Challenge accepted" });
+      } else {
+        console.warn("Intasend Webhook Challenge Mismatch!");
+        return res.status(403).json({ status: "failed", message: "Challenge failed" });
+      }
     }
 
-    const txnDoc = await txnRef.get();
-    if (!txnDoc.exists) {
-      console.error("Transaction not found for webhook:", req.body);
+    // 2. Process IPN (Instant Payment Notification)
+    const { event, data } = req.body;
+    const { invoice_id, state, api_ref, tracking_id, amount, currency, customer_phone, customer_email } = data;
+
+    if (!api_ref) {
+      console.warn("Intasend IPN: Missing api_ref in data", req.body);
+      return res.status(400).json({ error: "Missing api_ref" });
+    }
+
+    const txnRef = db.collection("transactions").doc(api_ref);
+    const txnSnap = await txnRef.get();
+
+    if (!txnSnap.exists) {
+      console.error("Intasend IPN: Transaction not found for api_ref:", api_ref);
       return res.status(404).json({ error: "Transaction not found" });
     }
-    const txn = txnDoc.data();
 
-    let newStatus = "pending";
-    if (state === "COMPLETE" || state === "SUCCESS") {
+    const txn = txnSnap.data();
+    let newStatus = txn.status;
+
+    // Map Intasend states to our internal statuses
+    if (state === "COMPLETE") {
       newStatus = "success";
     } else if (state === "FAILED" || state === "CANCELLED") {
       newStatus = "failed";
+    } else if (state === "PENDING") {
+      newStatus = "processing";
     }
 
+    // Prevent reprocessing successful transactions
+    if (txn.status === "success" && newStatus === "success") {
+      return res.status(200).json({ message: "Transaction already processed" });
+    }
+
+    // Update transaction status and details
     await txnRef.update({
       status: newStatus,
-      intasendStatus: state, // Store raw Intasend status
-      updatedAt: new Date().toISOString(),
+      intasendStatus: state,
+      intasendInvoiceId: invoice_id,
+      intasendTrackingId: tracking_id,
+      updatedAt: serverTimestamp(),
+      // Ensure amount and currency match, or update if necessary
+      amount: amount || txn.amount,
+      currency: currency || txn.currency,
+      phoneNumber: customer_phone || txn.phoneNumber,
+      email: customer_email || txn.email,
     });
+
+    const isDeposit = txn.type === "deposit";
+    const isWithdrawal = txn.type === "withdraw";
 
     // Credit user balance on successful deposit
     if (isDeposit && newStatus === "success" && txn.type === "deposit") {
@@ -101,9 +116,9 @@ export default async function handler(req, res) {
     // For successful withdrawals, the balance would have been decremented already (held)
     // If a withdrawal fails, we need to refund the user.
     if (isWithdrawal && newStatus === "failed" && txn.type === "withdraw") {
-      // Only refund if the transaction was previously marked as \'approved\' or \'processing\' for payout
+      // Only refund if the transaction was previously marked as 'approved' or 'processing' for payout
       // and the balance was already decremented.
-      if (txn.status === "approved" || txn.status === "processing") { // Assuming \'approved\' means balance was held
+      if (txn.status === "approved" || txn.status === "processing") { // Assuming 'approved' means balance was held
         await db.collection("users").doc(txn.uid).update({
           balance: FieldValue.increment(txn.amount),
         });
