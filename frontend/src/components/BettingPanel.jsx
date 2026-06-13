@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGame } from "../hooks/useGame";
 import { useAuth } from "../context/AuthContext";
 
 const QUICK = [100, 200, 500, 10000];
 
 function BetSlot({ slotIdx }) {
-  const { gamePhase, bets, placeBet, cashout, currency, activeBalance, error } = useGame();
+  const { gameState, gamePhase, bets, placeBet, cashout, currency, activeBalance, error } = useGame();
   const { profile } = useAuth();
   const [tab, setTab] = useState("manual"); // manual | auto
   const [stake, setStake] = useState(10);
@@ -14,9 +14,22 @@ function BetSlot({ slotIdx }) {
 
   const min = { KES: 10, TZS: 1000, UGX: 500 }[currency] || 10;
   const bet = bets[slotIdx];
-  const canBet = gamePhase === "waiting" && !bet;
-  const canCashout = gamePhase === "flying" && bet && !bet.cashedOut && !bet.lost;
-  const potentialWin = bet ? (bet.stake * (autoEnabled && bet.autoCashout ? bet.autoCashout : 1)).toFixed(2) : null;
+
+  // A bet can be placed if no bet exists in this slot AND game is waiting or flying (for early bet)
+  const canPlaceNewBet = !bet && (gamePhase === "waiting" || gamePhase === "flying");
+  // A bet can be cashed out if it's active, not cashed out, not lost, and game is flying
+  const canCashout = bet && bet.status === "active" && !bet.cashedOut && !bet.lost && gamePhase === "flying";
+
+  const potentialWin = bet && bet.status === "active" ? (bet.stake * (autoEnabled && bet.autoCashout ? bet.autoCashout : 1)).toFixed(2) : null;
+
+  useEffect(() => {
+    // Reset stake and auto-cashout when a bet is placed or round ends
+    if (!bet) {
+      setStake(10);
+      setAutoCashout("");
+      setAutoEnabled(false);
+    }
+  }, [bet]);
 
   function adjustStake(delta) {
     setStake(s => Math.max(min, Math.round((s + delta) / 10) * 10));
@@ -25,6 +38,36 @@ function BetSlot({ slotIdx }) {
   async function handleBet() {
     if (stake < min) return;
     await placeBet(slotIdx, stake, autoEnabled && autoCashout ? parseFloat(autoCashout) : null);
+  }
+
+  // Determine button text based on bet status and game phase
+  let buttonText = "Bet";
+  let buttonSubText = `${stake.toLocaleString()} ${currency}`;
+  let buttonClass = "btn-bet";
+  let buttonDisabled = !canPlaceNewBet || stake < min;
+
+  if (bet) {
+    if (bet.status === "pending_next_round") {
+      buttonText = "Next Round Bet";
+      buttonSubText = `${bet.stake.toLocaleString()} ${currency}`;
+      buttonClass = "btn-bet-pending";
+      buttonDisabled = true;
+    } else if (bet.status === "active") {
+      buttonText = "Bet Placed";
+      buttonSubText = `${bet.stake.toLocaleString()} ${currency}`;
+      buttonClass = "btn-bet-active";
+      buttonDisabled = true;
+    } else if (bet.status === "cashed_out") {
+      buttonText = "✅ Cashed Out";
+      buttonSubText = `${bet.winnings.toLocaleString()} ${currency}`;
+      buttonClass = "btn-cashout-success";
+      buttonDisabled = true;
+    } else if (bet.status === "lost") {
+      buttonText = "❌ Lost";
+      buttonSubText = `${bet.stake.toLocaleString()} ${currency}`;
+      buttonClass = "btn-bet-lost";
+      buttonDisabled = true;
+    }
   }
 
   return (
@@ -37,7 +80,7 @@ function BetSlot({ slotIdx }) {
 
       {/* Stake control */}
       <div className="stake-control">
-        <button className="stake-adj" onClick={() => adjustStake(-10)}>−</button>
+        <button className="stake-adj" onClick={() => adjustStake(-10)} disabled={!!bet}>−</button>
         <div className="stake-input-wrap">
           <input
             type="number" value={stake} min={min} step={10}
@@ -46,7 +89,7 @@ function BetSlot({ slotIdx }) {
           />
           <span className="stake-currency">{currency}</span>
         </div>
-        <button className="stake-adj" onClick={() => adjustStake(10)}>+</button>
+        <button className="stake-adj" onClick={() => adjustStake(10)} disabled={!!bet}>+</button>
       </div>
 
       {/* Quick amounts */}
@@ -79,12 +122,12 @@ function BetSlot({ slotIdx }) {
       {canCashout ? (
         <button className="btn-cashout" onClick={() => cashout(slotIdx)}>
           <span>Cash Out</span>
-          <span className="cashout-amount">{(bet.stake * 1).toFixed(2)} {currency}</span>
+          <span className="cashout-amount">{(bet.stake * multiplier).toFixed(2)} {currency}</span>
         </button>
       ) : (
-        <button className="btn-bet" onClick={handleBet} disabled={!canBet || stake < min}>
-          <span>{bet ? (bet.lost ? "❌ Lost" : bet.cashedOut ? "✅ Cashed Out" : "⏳ Waiting...") : "Bet"}</span>
-          {!bet && <span className="bet-amount">{stake.toLocaleString()} {currency}</span>}
+        <button className={buttonClass} onClick={handleBet} disabled={buttonDisabled}>
+          <span>{buttonText}</span>
+          {!bet && <span className="bet-amount">{buttonSubText}</span>}
         </button>
       )}
     </div>
