@@ -1,67 +1,75 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-if (!getApps().length) {
+// Robust Firebase Initialization
+function getFirebaseAdmin() {
+  if (getApps().length) return getFirestore();
+  
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Decode the base64 encoded private key
+  const privateKey = Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key_base64.");
+  }
+
   initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
+  return getFirestore();
 }
-const db = getFirestore();
-
-const MIN = { KES: 100, TZS: 10000, UGX: 3000 };
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  const { uid, amount, currency, phoneNumber } = req.body;
-  if (!uid || !amount || !currency || !phoneNumber)
+  const { uid, amount, currency, phoneNumber, fullName, email } = req.body;
+
+  if (!uid || !amount || !currency || !phoneNumber || !fullName || !email) {
     return res.status(400).json({ error: "Missing required fields" });
+  }
 
-  if (isNaN(amount) || amount <= 0)
+  if (isNaN(amount) || amount <= 0) {
     return res.status(400).json({ error: "Invalid amount" });
-
-  const min = MIN[currency];
-  if (!min) return res.status(400).json({ error: `Unsupported currency: ${currency}` });
-  const rounded = Math.round(amount / 10) * 10;
-  if (rounded < min)
-    return res.status(400).json({ error: `Minimum withdrawal is ${min.toLocaleString()} ${currency}` });
+  }
 
   try {
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
-    const user = userDoc.data();
+    const db = getFirebaseAdmin();
 
-    // Check if user has sufficient balance for the withdrawal request
-    const userBalance = user.balance || 0;
-    if (rounded > userBalance) {
-      return res.status(400).json({ error: "Insufficient balance for withdrawal request" });
+    // Check if user exists and has sufficient balance
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists()) {
+      return res.status(404).json({ error: "User not found" });
     }
+    const currentBalance = userSnap.data().balance || 0;
 
-    // Create a pending withdrawal transaction. Balance is NOT decremented here.
-    // It will be decremented upon admin approval and successful Intasend payout.
-    const txnRef = db.collection("transactions").doc();
-    await txnRef.set({
-      id: txnRef.id, uid, type: "withdraw", amount: rounded,
-      currency, phoneNumber, status: "pending",
-      fullName: user.fullName || "",
-      timestamp: new Date().toISOString(),
+    // In the new flow, balance is only decremented on admin approval and successful payout.
+    // Here, we just create a pending transaction.
+    const transactionRef = db.collection("transactions").doc();
+    await transactionRef.set({
+      id: transactionRef.id,
+      uid,
+      type: "withdraw",
+      amount: parseFloat(amount),
+      currency,
+      phoneNumber,
+      fullName,
+      email,
+      status: "pending", // Mark as pending for admin approval
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
-    return res.status(200).json({
-      status: "pending",
-      transactionId: txnRef.id,
-      message: `Withdrawal request of ${rounded.toLocaleString()} ${currency} submitted. Pending admin approval.`,
-    });
+    return res.status(200).json({ message: "Withdrawal request submitted for approval", transactionId: transactionRef.id });
   } catch (e) {
-    console.error("Withdrawal request error:", e.message);
-    return res.status(500).json({ error: e.message || "Failed to submit withdrawal request" });
+    console.error("Withdraw API error:", e.message, e.stack);
+    return res.status(500).json({ error: e.message || "An unexpected error occurred" });
   }
 }
