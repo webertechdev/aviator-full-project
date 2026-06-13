@@ -1,13 +1,23 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function GameCanvas({ multiplier, gamePhase }) {
   const canvasRef = useRef(null);
   const historyRef = useRef([]);
-  const planeImageRef = useRef(new Image());
+  const planeImageRef = useRef(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
-    planeImageRef.current.src = "/plane.png";
-    planeImageRef.current.onload = () => draw();
+    const img = new Image();
+    img.src = "/plane.png";
+    img.onload = () => {
+      planeImageRef.current = img;
+      setImageLoaded(true);
+    };
+    img.onerror = () => {
+      console.warn("Failed to load plane.png, falling back to emoji.");
+      planeImageRef.current = null; // Ensure it's null on error
+      setImageLoaded(true); // Still mark as loaded to allow fallback drawing
+    };
   }, []);
 
   useEffect(() => {
@@ -15,8 +25,10 @@ export default function GameCanvas({ multiplier, gamePhase }) {
     if (gamePhase === "flying" || gamePhase === "crashed") {
       historyRef.current.push(multiplier);
     }
-    draw();
-  }, [multiplier, gamePhase]);
+    if (imageLoaded) {
+      draw();
+    }
+  }, [multiplier, gamePhase, imageLoaded]);
 
   function draw() {
     const canvas = canvasRef.current;
@@ -118,7 +130,7 @@ export default function GameCanvas({ multiplier, gamePhase }) {
       rotation = Math.atan2(dy, dx);
     }
 
-    if (planeImg.complete && planeImg.naturalWidth !== 0) {
+    if (planeImg && planeImg.complete && planeImg.naturalWidth !== 0) {
       ctx.save();
       ctx.translate(lastX, lastY);
       if (gamePhase === "crashed") ctx.rotate(Math.PI / 4);
@@ -126,7 +138,7 @@ export default function GameCanvas({ multiplier, gamePhase }) {
       ctx.drawImage(planeImg, -25, -25, 50, 50);
       ctx.restore();
     } else {
-      // Fallback if image not found
+      // Fallback if image not found or broken
       ctx.save();
       ctx.fillStyle = "#e8003d";
       ctx.font = "30px serif";
