@@ -11,12 +11,5 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "INTASEND_PUBLISHABLE_KEY": "",
-    "INTASEND_SECRET_KEY": "",
-    "INTASEND_TEST_MODE": "false",
-    "FIREBASE_PROJECT_ID": "",
-    "FIREBASE_CLIENT_EMAIL": "",
-    "FIREBASE_PRIVATE_KEY": ""
-  }
+  ]
+}
