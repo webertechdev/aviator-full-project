@@ -29,14 +29,8 @@ jobs:
 
       - name: Deploy to Vercel
         run: |
-          vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} \
-            --env INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }} \
-            --env INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }} \
-            --env INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }} \
-            --env INTASEND_WEBHOOK_SECRET=${{ secrets.INTASEND_WEBHOOK_SECRET }} \
-            --env FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
-            --env FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} \
-            --env FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+          ENCODED_PRIVATE_KEY=$(echo "${{ secrets.FIREBASE_PRIVATE_KEY }}" | base64 -w 0)
+          vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }} --env INTASEND_PUBLISHABLE_KEY=${{ secrets.INTASEND_PUBLISHABLE_KEY }} --env INTASEND_SECRET_KEY=${{ secrets.INTASEND_SECRET_KEY }} --env INTASEND_TEST_MODE=${{ secrets.INTASEND_TEST_MODE }} --env INTASEND_WEBHOOK_SECRET=${{ secrets.INTASEND_WEBHOOK_SECRET }} --env FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} --env FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} --env FIREBASE_PRIVATE_KEY_BASE64="$ENCODED_PRIVATE_KEY"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
