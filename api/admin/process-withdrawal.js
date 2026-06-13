@@ -1,18 +1,25 @@
-
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import IntaSend from "intasend-node";
 
-if (!getApps().length) {
+// Robust Firebase Initialization
+function getFirebaseAdmin() {
+  if (getApps().length) return getFirestore();
+  
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Decode the base64 encoded private key
+  const privateKey = Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error("Missing Firebase credentials: Check project_id, client_email, and private_key_base64.");
+  }
+
   initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
+    credential: cert({ projectId, clientEmail, privateKey }),
   });
+  return getFirestore();
 }
-const db = getFirestore();
 
 const INTASEND_PUBLISHABLE_KEY = process.env.INTASEND_PUBLISHABLE_KEY;
 const INTASEND_SECRET_KEY = process.env.INTASEND_SECRET_KEY;
@@ -29,97 +36,103 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const { adminUid, transactionId, action, note } = req.body;
-  if (!adminUid || !transactionId || !action)
-    return res.status(400).json({ error: "Missing fields: adminUid, transactionId, action" });
-  if (!["approve","decline"].includes(action))
-    return res.status(400).json({ error: "action must be \'approve\' or \'decline\'" });
-
-  // Verify admin role
-  const adminDoc = await db.collection("users").doc(adminUid).get();
-  if (!adminDoc.exists || adminDoc.data().role !== "admin")
-    return res.status(403).json({ error: "Unauthorized — not an admin" });
-
-  const txnRef = db.collection("transactions").doc(transactionId);
-  const txnDoc = await txnRef.get();
-  if (!txnDoc.exists) return res.status(404).json({ error: "Transaction not found" });
-
-  const txn = txnDoc.data();
-  if (txn.type !== "withdraw") return res.status(400).json({ error: "Not a withdrawal transaction" });
-  if (txn.status !== "pending") return res.status(400).json({ error: `Already ${txn.status}` });
-
-  if (action === "decline") {
-    // Refund held balance back to user (if it was held, which it isn't in the new flow)
-    // In the new flow, balance is only decremented on successful payout.
-    // So, for decline, we just update the transaction status.
-    await txnRef.update({
-      status: "declined",
-      adminNote: note || null,
-      processedAt: new Date().toISOString(),
-      processedBy: adminUid,
-    });
-    return res.status(200).json({ status: "declined", message: "Withdrawal declined." });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // approve — trigger Intasend payout and decrement user balance
+  const { adminUid, transactionId, action, note } = req.body;
+
+  if (!adminUid || !transactionId || !action) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
   try {
-    // First, decrement the user's balance
-    const userRef = db.collection("users").doc(txn.uid);
-    const userDoc = await userRef.get();
-    if (!userDoc.exists) throw new Error("User not found for withdrawal");
-    const user = userDoc.data();
+    const db = getFirebaseAdmin();
 
-    if (txn.amount > (user.balance || 0)) {
-      // This should ideally not happen if frontend validates, but as a safeguard
-      await txnRef.update({
-        status: "failed",
-        adminNote: (note || "") + "\nFailed: Insufficient user balance at time of approval.",
-        processedAt: new Date().toISOString(),
-        processedBy: adminUid,
-      });
-      return res.status(400).json({ error: "Insufficient user balance for payout." });
+    const adminUserRef = db.collection("users").doc(adminUid);
+    const adminUserSnap = await adminUserRef.get();
+    if (!adminUserSnap.exists || adminUserSnap.data().role !== "admin") {
+      return res.status(403).json({ error: "Unauthorized: Admin access required" });
     }
 
-    await userRef.update({ balance: FieldValue.increment(-txn.amount) });
+    const txnRef = db.collection("transactions").doc(transactionId);
+    const txnSnap = await txnRef.get();
 
-    // Then, initiate Intasend B2C payout
-    const payouts = intasend.payouts();
-    const payoutRes = await payouts.mpesa({
-      currency: txn.currency,
-      requires_approval: "NO", // Admin has already approved
-      transactions: [{
-        name: txn.fullName || "Player",
-        account: txn.phoneNumber,
+    if (!txnSnap.exists) {
+      return res.status(404).json({ error: "Transaction not found" });
+    }
+
+    const txn = txnSnap.data();
+
+    if (txn.type !== "withdraw" || txn.status !== "pending") {
+      return res.status(400).json({ error: "Transaction is not a pending withdrawal" });
+    }
+
+    if (action === "approve") {
+      // Decrement user balance and initiate IntaSend B2C payout
+      await db.runTransaction(async (t) => {
+        const userRef = db.collection("users").doc(txn.uid);
+        const userSnap = await t.get(userRef);
+        const currentBalance = userSnap.data().balance || 0;
+
+        if (currentBalance < txn.amount) {
+          throw new Error("Insufficient user balance for withdrawal");
+        }
+
+        t.update(userRef, { balance: FieldValue.increment(-txn.amount) });
+        t.update(txnRef, {
+          status: "approved",
+          adminUid,
+          adminNote: note,
+          processedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      // Initiate IntaSend B2C Payout
+      const payout = intasend.payout();
+      const result = await payout.send({
+        phone_number: txn.phoneNumber,
         amount: txn.amount,
-        narrative: `Aviator withdrawal for ${txn.fullName || txn.uid}`,
-      }],
-    });
-
-    if (payoutRes.status === "success") {
-      await txnRef.update({
-        status: "approved", // Status is approved, actual payout status will be updated by IPN
-        adminNote: note || null,
-        processedAt: new Date().toISOString(),
-        processedBy: adminUid,
-        intasendTrackingId: payoutRes.tracking_id, // Store Intasend tracking ID
+        currency: txn.currency,
+        api_ref: transactionId,
       });
-      return res.status(200).json({ status: "approved", message: "Payout initiated via Intasend." });
+
+      if (result.status === "success") {
+        await txnRef.update({
+          intasendPayoutId: result.tracking_id,
+          intasendStatus: result.status,
+          status: "processing", // Status will be updated by IPN webhook
+          updatedAt: serverTimestamp(),
+        });
+        return res.status(200).json({ message: "Withdrawal approved and payout initiated", trackingId: result.tracking_id });
+      } else {
+        // If IntaSend payout fails, refund the user and mark transaction as failed
+        await db.collection("users").doc(txn.uid).update({
+          balance: FieldValue.increment(txn.amount),
+        });
+        await txnRef.update({
+          status: "failed",
+          adminNote: (note || "") + "\nIntaSend payout failed: " + (result.message || "Unknown error"),
+          updatedAt: serverTimestamp(),
+        });
+        return res.status(500).json({ error: result.message || "IntaSend payout failed" });
+      }
+
+    } else if (action === "decline") {
+      await txnRef.update({
+        status: "declined",
+        adminUid,
+        adminNote: note,
+        processedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return res.status(200).json({ message: "Withdrawal declined" });
     } else {
-      // If Intasend initiation fails, refund the user and mark transaction as failed
-      await userRef.update({ balance: FieldValue.increment(txn.amount) }); // Refund
-      await txnRef.update({
-        status: "failed",
-        adminNote: (note || "") + `\nIntasend payout initiation failed: ${payoutRes.message || "Unknown error"}`,
-        processedAt: new Date().toISOString(),
-        processedBy: adminUid,
-      });
-      throw new Error(payoutRes.message || "Intasend payout initiation failed");
+      return res.status(400).json({ error: "Invalid action" });
     }
-
   } catch (e) {
-    console.error("Payout error:", e.message);
-    return res.status(500).json({ error: "Payout failed: " + (e.message || "Unknown error") });
+    console.error("Process Withdrawal API error:", e.message, e.stack);
+    return res.status(500).json({ error: e.message || "An unexpected error occurred" });
   }
 }
