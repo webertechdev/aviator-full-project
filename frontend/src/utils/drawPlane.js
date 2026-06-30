@@ -8,9 +8,9 @@ import {
   planeLift,
   createTrail
 } from "./curveRenderer";
-
+console.log("drawPlane received:", points.length);
 export function drawPlane(
-  console.log("drawPlane received:", points.length);
+  
   ctx,
   planeImage,
   points,
