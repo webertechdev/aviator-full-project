@@ -323,7 +323,7 @@ export default function GameCanvas({
       H
 
     );
-        //--------------------------------------------------
+    //--------------------------------------------------
     // Waiting Screen
     //--------------------------------------------------
 
@@ -376,7 +376,11 @@ export default function GameCanvas({
         W,
         H
       );
-
+      console.log("History:", historyRef.current.length);
+      console.log("Points:", points);
+      console.log("Phase:", gamePhase);
+      console.log("Multiplier:", multiplier);
+      
       drawCurve(
         ctx,
         points,
