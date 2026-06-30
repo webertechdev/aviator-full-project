@@ -2,10 +2,12 @@
 // Premium Aviator Curve Renderer
 // Betika-style exponential curve
 // ======================================================
-
 import { buildSpline } from "./curveRenderer";
 
+
+
 export function drawCurve(
+  console.log("drawCurve received:", points.length);
   ctx,
   points,
   width,

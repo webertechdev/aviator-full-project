@@ -10,6 +10,7 @@ import {
 } from "./curveRenderer";
 
 export function drawPlane(
+  console.log("drawPlane received:", points.length);
   ctx,
   planeImage,
   points,
