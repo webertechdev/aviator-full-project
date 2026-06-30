@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import {
   doc,
   collection,
@@ -16,37 +17,27 @@ import {
 import { db } from "../../lib/firebase";
 import { generateMultiplier } from "./helpers";
 
+
 export function useFirebaseGame() {
+  //----------------------------------------------------
+// Prevent animation restarting every Firestore update
+//----------------------------------------------------
+
+const startedRoundRef = useRef(null);
   //----------------------------------------------------
   // Subscribe to current game
   //----------------------------------------------------
-  const subscribeToGame = (
-    setters,
-    engines
-  ) => {
+  function subscribeToGame(setters,
+    engines) {
     const {
-      setGameState,
-      setGamePhase,
-      setMultiplier,
-      setPastMultipliers,
-      setBets,
-      setQueuedBets,
-      betsRef,
+      setGameState, setGamePhase, setMultiplier, setPastMultipliers, setBets, setQueuedBets, betsRef,
     } = setters;
 
     const {
 
-    animationEngine,
+      animationEngine, roundEngine, bettingEngine, hostController, firebaseGame
 
-    roundEngine,
-
-    bettingEngine,
-
-    hostController,
-
-    firebaseGame
-
-} = engines;
+    } = engines;
 
     return onSnapshot(
       doc(db, "gameState", "current"),
@@ -61,65 +52,69 @@ export function useFirebaseGame() {
         setGameState(game);
         setGamePhase(game.phase);
         //--------------------------------------------------
-// Host election
-//--------------------------------------------------
+        // Host election
+        //--------------------------------------------------
+        const becameHost = await hostController.tryBecomeHost(game);
 
-const becameHost = await hostController.tryBecomeHost(game);
-
-if (becameHost) {
-    hostController.startHosting();
-}
-
-       if (game.phase === "flying") {
-
-    animationEngine.startAnimation(
-        game.crashMultiplier
-    );
-
-    roundEngine.onRoundStarted(
-
-    bettingEngine.consumeQueuedBets,
-
-    bettingEngine.placeBet
-
-);
-    //--------------------------------------------------
-// deleted Restore active bets from Firestore
-//--------------------------------------------------
-
-
-    //--------------------------------------------------
-    // Host disappeared while round flying
-    //--------------------------------------------------
-
-    /*
-    const hb = game.hostHeartbeat?.toMillis
-        ? game.hostHeartbeat.toMillis()
-        : game.hostHeartbeat || 0;
-
-    const dead =
-        Date.now() - hb > 5000;
-
-    if (dead) {
-
-        const host =
-    await hostController.tryBecomeHost(game);
-
-        if (host) {
-
-            await firebaseGame.finishRound(
-                game.crashMultiplier
-            );
-
-            return;
-
+        if (becameHost) {
+          hostController.startHosting();
         }
 
-    }
-*/
+        if (game.phase === "flying") {
 
-}
-        if (game.phase === "waiting") {
+          if (startedRoundRef.current !== game.roundId) {
+
+            startedRoundRef.current = game.roundId;
+
+            animationEngine.startAnimation(
+              game.crashMultiplier
+            );
+            animationEngine.setMultiplier(
+    game.multiplier || 1
+);
+
+            roundEngine.onRoundStarted(
+
+              bettingEngine.consumeQueuedBets,
+
+              bettingEngine.placeBet
+
+            );
+            //--------------------------------------------------
+            // deleted Restore active bets from Firestore
+            //--------------------------------------------------
+            //--------------------------------------------------
+            // Host disappeared while round flying
+            //--------------------------------------------------
+            /*
+            const hb = game.hostHeartbeat?.toMillis
+                ? game.hostHeartbeat.toMillis()
+                : game.hostHeartbeat || 0;
+        
+            const dead =
+                Date.now() - hb > 5000;
+        
+            if (dead) {
+        
+                const host =
+            await hostController.tryBecomeHost(game);
+        
+                if (host) {
+        
+                    await firebaseGame.finishRound(
+                        game.crashMultiplier
+                    );
+        
+                    return;
+        
+                }
+        
+            }
+        */
+          }
+          if (game.phase === "waiting") {
+
+    startedRoundRef.current = null;
 
     animationEngine.stopAnimation();
 
@@ -127,60 +122,58 @@ if (becameHost) {
 
     setBets([null, null]);
 
-    const becameHost =
-        await hostController.tryBecomeHost(game);
+            const becameHost = await hostController.tryBecomeHost(game);
 
-    if (becameHost) {
+            if (becameHost) {
 
-        hostController.startHosting();
+              hostController.startHosting();
 
-        await hostController.hostStartRound(firebaseGame);
+              await hostController.hostStartRound(firebaseGame);
 
-    }
-}
+            }
+          }
 
-        if (game.phase === "crashed") {
+          if (game.phase === "crashed") {
 
-    animationEngine.stopAnimation();
+            animationEngine.stopAnimation();
 
-    setMultiplier(game.crashMultiplier);
+            setMultiplier(game.crashMultiplier);
 
-    setPastMultipliers(prev => [
-        game.crashMultiplier,
-        ...prev
-    ].slice(0, 25));
+            setPastMultipliers(prev => [
+              game.crashMultiplier,
+              ...prev
+            ].slice(0, 25));
 
-    roundEngine.onRoundEnded(
-        bettingEngine.betsRef,
-        bettingEngine.clearBet
-    );
+            roundEngine.onRoundEnded(
+              bettingEngine.betsRef,
+              bettingEngine.clearBet
+            );
 
-    // Host starts the next round
-    setTimeout(async () => {
+            // Host starts the next round
+            setTimeout(async () => {
 
-    const latest =
-        await getDoc(doc(db, "gameState", "current"));
+              const latest = await getDoc(doc(db, "gameState", "current"));
 
-    const latestGame = latest.data();
+              const latestGame = latest.data();
 
-    const becameHost =
-        await hostController.tryBecomeHost(latestGame);
+              const becameHost = await hostController.tryBecomeHost(latestGame);
 
-    if (becameHost) {
+              if (becameHost) {
 
-        await hostController.hostStartRound(firebaseGame);
+                await hostController.hostStartRound(firebaseGame);
 
-    }
+              }
 
-}, 4000);
-    
-
-}
+            }, 4000);
 
 
+          }
+
+
+        }
       }
     );
-  };
+  }
 
   //----------------------------------------------------
   // Load history
@@ -239,6 +232,20 @@ console.log("START ROUND FUNCTION");
   );
 console.log("Firestore switched to flying");
 };
+//----------------------------------------------------
+// Update multiplier during flight
+//----------------------------------------------------
+
+const updateMultiplier = async (multiplier) => {
+
+  await updateDoc(
+    doc(db, "gameState", "current"),
+    {
+      multiplier
+    }
+  );
+
+};
 
   //----------------------------------------------------
   // Finish round
@@ -260,6 +267,7 @@ console.log("Firestore switched to flying");
     loadHistory,
     bootstrapGame,
     startRound,
+    updateMultiplier,
     finishRound,
-  };
+};
 }

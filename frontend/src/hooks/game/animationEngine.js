@@ -63,10 +63,11 @@ export function useAnimationEngine() {
     crashRef.current = crashMultiplier;
 
     startTimeRef.current = Date.now();
+    
 
     runningRef.current = true;
 
-    setMultiplier(1);
+    setMultiplier(prev => prev);
 
     frameRef.current = requestAnimationFrame(animate);
 

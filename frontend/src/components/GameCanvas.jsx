@@ -551,6 +551,7 @@ export default function GameCanvas({
     };
 
   }, []);
+  console.log(historyRef.current.slice(-10));
 
   //--------------------------------------------------
   // Component

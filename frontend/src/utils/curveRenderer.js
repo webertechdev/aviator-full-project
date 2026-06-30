@@ -17,7 +17,7 @@ export function sampleCurve(history, width, height) {
   const maxMultiplier = Math.max(...history.map(p => p.m), 2);
 
   const drawWidth = width - padding * 2;
-  const drawHeight = height - padding * 2;
+  const drawHeight = height - padding * 0.65;
 
   const filtered = history.filter((_, i) => i % 4 === 0);
 
@@ -33,11 +33,14 @@ return filtered.map(point => {
     const scaledMax =
       visualMultiplier(maxMultiplier);
 
-    const y =
-      height -
-      padding -
-      (scaled / scaledMax) *
-        drawHeight;
+    const topLimit = 70;
+const bottomLimit = height - 70;
+
+const progress = scaled / scaledMax;
+
+const y =
+    bottomLimit -
+    progress * (bottomLimit - topLimit);
 
     return { x, y };
   });

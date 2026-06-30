@@ -8,7 +8,7 @@ import { db } from "../../lib/firebase";
 
 import {
   generateMultiplier,
-  roundDuration
+  calculateMultiplier
 } from "./helpers";
 
 import { useRef } from "react";
@@ -109,7 +109,7 @@ export function useHostController(user, profile) {
 
         if (roundTimerRef.current) {
 
-            clearTimeout(roundTimerRef.current);
+            clearInterval(roundTimerRef.current);
 
             roundTimerRef.current = null;
 
@@ -141,34 +141,42 @@ export function useHostController(user, profile) {
        with */
     async function hostStartRound(firebaseGame) {
 
-    console.log("HOST START ROUND CALLED");
+    console.log("HOST START ROUND");
 
     const crash = generateMultiplier();
 
-    console.log("Generated crash:", crash);
-
-    const duration = roundDuration(crash);
-
-    console.log("Duration:", duration);
-
     await firebaseGame.startRound(crash);
 
-    console.log("Firestore updated to flying");
+    const started = Date.now();
 
     if (roundTimerRef.current) {
-        clearTimeout(roundTimerRef.current);
+        clearInterval(roundTimerRef.current);
     }
 
-    roundTimerRef.current = setTimeout(async () => {
+    roundTimerRef.current = setInterval(async () => {
 
-        console.log("FINISH ROUND");
+        const elapsed = Date.now() - started;
 
-        await firebaseGame.finishRound(crash);
+        const multiplier =
+            calculateMultiplier(elapsed);
 
-    }, duration);
+        if (multiplier >= crash) {
+
+            clearInterval(roundTimerRef.current);
+
+            roundTimerRef.current = null;
+
+            await firebaseGame.finishRound(crash);
+
+            return;
+
+        }
+
+        await firebaseGame.updateMultiplier(multiplier);
+
+    }, 40);
 
 }
-//upto there
 
 
     return {
