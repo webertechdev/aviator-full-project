@@ -25,6 +25,10 @@ export default function GameCanvas({
   liveBets = []
 
 }) {
+  console.log("GameCanvas Render", {
+  multiplier,
+  gamePhase
+});
 
   //--------------------------------------------------
   // Canvas
