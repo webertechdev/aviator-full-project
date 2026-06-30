@@ -91,12 +91,13 @@ export function drawCurve(
   ctx.save();
 
   ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
 
   buildSpline(ctx, points);
 
   ctx.strokeStyle =
     gamePhase === "crashed"
-      ? "#ff4444"
+      ? "#e40d0d"
       : "#ff1248";
 
   ctx.lineWidth = 12;

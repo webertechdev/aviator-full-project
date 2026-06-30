@@ -8,27 +8,30 @@ export function generateMultiplier() {
 
     let raw;
 
+    // 70% of rounds
     if (r < 0.70) {
 
-        raw = 1 + Math.random() * 2;
-
-    } else if (r < 0.95) {
-
-        raw = 3 + Math.random() * 17;
-
-    } else {
-
-        raw = 20 + Math.random() * 180;
+        raw = 3 + Math.random() * 7;      // 3x - 10x
 
     }
 
-    return Math.max(
-        1.01,
-        Number((raw * 0.95).toFixed(2))
-    );
+    // 25%
+    else if (r < 0.95) {
+
+        raw = 10 + Math.random() * 40;    // 10x - 50x
+
+    }
+
+    // Jackpot
+    else {
+
+        raw = 50 + Math.random() * 450;   // 50x - 500x
+
+    }
+
+    return Number(raw.toFixed(2));
 
 }
-
 
 
 // ----------------------------------------------------

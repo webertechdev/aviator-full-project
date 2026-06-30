@@ -19,7 +19,9 @@ export function sampleCurve(history, width, height) {
   const drawWidth = width - padding * 2;
   const drawHeight = height - padding * 2;
 
-  return history.map(point => {
+  const filtered = history.filter((_, i) => i % 4 === 0);
+
+return filtered.map(point => {
     const x =
       padding +
       (point.t / maxTime) *
@@ -46,11 +48,8 @@ export function sampleCurve(history, width, height) {
 // ------------------------------------------------
 
 export function buildSpline(ctx, points) {
-  if (points.length < 2) return;
 
-  ctx.beginPath();
-
-  ctx.moveTo(points[0].x, points[0].y);
+    if (points.length < 2) return;
 
   for (let i = 0; i < points.length - 1; i++) {
 
