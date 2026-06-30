@@ -5,7 +5,7 @@
 import { buildSpline } from "./curveRenderer";
 
 
-console.log("drawCurve received:", points.length);
+
 export function drawCurve(
   
   ctx,
