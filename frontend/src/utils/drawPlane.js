@@ -8,7 +8,7 @@ import {
   planeLift,
   createTrail
 } from "./curveRenderer";
-console.log("drawPlane received:", points.length);
+
 export function drawPlane(
   
   ctx,
