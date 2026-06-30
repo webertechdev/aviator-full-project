@@ -202,31 +202,31 @@ export default function GameCanvas({
 
     if (gamePhase === "flying") {
 
-      if (startTimeRef.current === null) {
+    if (historyRef.current.length === 0) {
 
-        startTimeRef.current = Date.now();
-
-      }
-
-      historyRef.current.push({
-
-        t:
-
-          (Date.now() -
-
-            startTimeRef.current) /
-
-          1000,
-
-        m: multiplier,
-
-      });
-
-      renderScene();
-
-      return;
+        startTimeRef.current = performance.now();
 
     }
+
+    historyRef.current.push({
+
+        t: (performance.now() - startTimeRef.current) / 1000,
+
+        m: multiplier
+
+    });
+
+    if (historyRef.current.length > 400) {
+
+        historyRef.current.shift();
+
+    }
+
+    renderScene();
+
+    return;
+
+}
 
     if (gamePhase === "crashed") {
 

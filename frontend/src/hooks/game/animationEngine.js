@@ -56,20 +56,9 @@ export function useAnimationEngine() {
 };
     //--------------------------------------------------
 
-    const startAnimation = (crashMultiplier) => {
+    const startAnimation = () => {
 
     stopAnimation();
-
-    crashRef.current = crashMultiplier;
-
-    startTimeRef.current = Date.now();
-    
-
-    runningRef.current = true;
-
-    setMultiplier(prev => prev);
-
-    frameRef.current = requestAnimationFrame(animate);
 
 };
     //--------------------------------------------------

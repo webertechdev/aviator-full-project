@@ -155,26 +155,34 @@ export function useHostController(user, profile) {
 
     roundTimerRef.current = setInterval(async () => {
 
-        const elapsed = Date.now() - started;
+    console.log("HOST LOOP RUNNING");
 
-        const multiplier =
-            calculateMultiplier(elapsed);
+    const elapsed = Date.now() - started;
 
-        if (multiplier >= crash) {
+    const currentMultiplier = calculateMultiplier(elapsed);
 
-            clearInterval(roundTimerRef.current);
+    console.log(
+        "Current:",
+        currentMultiplier,
+        "Crash:",
+        crash
+    );
 
-            roundTimerRef.current = null;
+    if (currentMultiplier >= crash) {
 
-            await firebaseGame.finishRound(crash);
+        console.log("CALLING finishRound()");
 
-            return;
+        clearInterval(roundTimerRef.current);
+        roundTimerRef.current = null;
 
-        }
+        await firebaseGame.finishRound(crash);
 
-        await firebaseGame.updateMultiplier(multiplier);
+        return;
+    }
 
-    }, 40);
+    await firebaseGame.updateMultiplier(currentMultiplier);
+
+}, 40);
 
 }
 

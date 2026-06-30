@@ -58,9 +58,7 @@ export function calculateMultiplier(elapsed) {
 
     return Number(
 
-        Math.exp(elapsed * 0.00065)
-
-            .toFixed(2)
+        Math.exp(elapsed * 0.00004)
 
     );
 
