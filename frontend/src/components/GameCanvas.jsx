@@ -371,15 +371,16 @@ export default function GameCanvas({
       // Build Curve
       //--------------------------------------------------
 
+      console.log("History:", historyRef.current.length);
+      console.log("Points:", points);
+      console.log("Phase:", gamePhase);
+      console.log("Multiplier:", multiplier);
+      
       const points = sampleCurve(
         historyRef.current,
         W,
         H
       );
-      console.log("History:", historyRef.current.length);
-      console.log("Points:", points);
-      console.log("Phase:", gamePhase);
-      console.log("Multiplier:", multiplier);
       
       drawCurve(
         ctx,

@@ -8,6 +8,7 @@ export function visualMultiplier(m) {
 }
 
 export function sampleCurve(history, width, height) {
+  console.log("sampleCurve history:", history);
   if (!history.length) return [];
 
   const padding = 40;
