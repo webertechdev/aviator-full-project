@@ -376,7 +376,7 @@ export default function GameCanvas({
       //--------------------------------------------------
 
       console.log("History:", historyRef.current.length);
-      console.log("Points:", points);
+      
       console.log("Phase:", gamePhase);
       console.log("Multiplier:", multiplier);
       

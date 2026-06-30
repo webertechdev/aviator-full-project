@@ -39,7 +39,7 @@ export function roundDuration(multiplier) {
 
     return Math.ceil(
 
-        (Math.log(multiplier) / 0.06) * 1000
+        Math.log(multiplier) / 0.00065
 
     );
 
@@ -53,11 +53,11 @@ export function roundDuration(multiplier) {
 
 export function calculateMultiplier(elapsed) {
 
-    return Math.max(
+    return Number(
 
-        1,
+        Math.exp(elapsed * 0.00065)
 
-        Math.exp(elapsed * 0.00006)
+            .toFixed(2)
 
     );
 

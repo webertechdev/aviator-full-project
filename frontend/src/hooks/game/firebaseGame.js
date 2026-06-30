@@ -60,10 +60,15 @@ export function useFirebaseGame() {
 
         setGameState(game);
         setGamePhase(game.phase);
-        // ----------------------------------------------------
-// deleted Host election
-// ----------------------------------------------------
+        //--------------------------------------------------
+// Host election
+//--------------------------------------------------
 
+const becameHost = await hostController.tryBecomeHost(game);
+
+if (becameHost) {
+    hostController.startHosting();
+}
 
        if (game.phase === "flying") {
 
@@ -115,12 +120,24 @@ export function useFirebaseGame() {
 
 }
         if (game.phase === "waiting") {
-          animationEngine.stopAnimation();
 
-          animationEngine.setMultiplier(1);
+    animationEngine.stopAnimation();
 
-          setBets([null, null]);
-        }
+    animationEngine.setMultiplier(1);
+
+    setBets([null, null]);
+
+    const becameHost =
+        await hostController.tryBecomeHost(game);
+
+    if (becameHost) {
+
+        hostController.startHosting();
+
+        await hostController.hostStartRound(firebaseGame);
+
+    }
+}
 
         if (game.phase === "crashed") {
 
@@ -138,7 +155,24 @@ export function useFirebaseGame() {
         bettingEngine.clearBet
     );
 
-    // deleted Host starts the next round
+    // Host starts the next round
+    setTimeout(async () => {
+
+    const latest =
+        await getDoc(doc(db, "gameState", "current"));
+
+    const latestGame = latest.data();
+
+    const becameHost =
+        await hostController.tryBecomeHost(latestGame);
+
+    if (becameHost) {
+
+        await hostController.hostStartRound(firebaseGame);
+
+    }
+
+}, 4000);
     
 
 }
