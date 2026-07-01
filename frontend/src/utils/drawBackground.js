@@ -141,3 +141,17 @@ export function drawBackground(ctx, W, H) {
   );
 
 }
+ctx.save();
+
+ctx.strokeStyle = "rgba(255,255,255,.08)";
+
+ctx.lineWidth = 2;
+
+ctx.strokeRect(
+20,
+20,
+W-40,
+H-40
+);
+
+ctx.restore();

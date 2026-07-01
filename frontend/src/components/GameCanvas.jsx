@@ -180,11 +180,21 @@ export default function GameCanvas({
 
     );
 
-    if (gamePhase === "waiting") {
+   if (gamePhase === "waiting") {
 
-      historyRef.current = [];
+      historyRef.current = [
 
-      startTimeRef.current = null;
+          {
+
+              t: 0,
+
+              m: 1
+
+          }
+
+      ];
+
+      startTimeRef.current = performance.now();
 
       crashRef.current = {
 
@@ -216,7 +226,7 @@ export default function GameCanvas({
 
     });
 
-    if (historyRef.current.length > 400) {
+    if (historyRef.current.length > 250) {
 
         historyRef.current.shift();
 

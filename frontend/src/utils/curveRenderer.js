@@ -1,167 +1,109 @@
-// ===============================================
-// Curve Renderer
-// Generates the smooth Betika-style flight curve
-// ===============================================
-
-export function visualMultiplier(m) {
-  return Math.log(m + 1);
-}
+// ======================================================
+// Curve Renderer V2
+// ======================================================
 
 export function sampleCurve(history, width, height) {
-  console.log("sampleCurve history:", history);
-  if (!history.length) return [];
 
-  const padding = 40;
+    if (!history.length) return [];
 
-  const maxTime = history[history.length - 1].t || 1;
-  const maxMultiplier = Math.max(...history.map(p => p.m), 2);
+    const left = 40;
+    const right = width - 120;
 
-  const drawWidth = width - padding * 2;
-  const drawHeight = height - padding * 0.65;
+    const bottom = height - 40;
+    const top = 40;
 
-  const filtered = history.filter((_, i) => i % 4 === 0);
+    const maxTime = history[history.length - 1].t || 1;
+    const maxMultiplier = Math.max(...history.map(h => h.m), 2);
 
-return filtered.map(point => {
-    const x =
-      padding +
-      (point.t / maxTime) *
-        drawWidth;
+    return history.map(h => {
 
-    const scaled =
-      visualMultiplier(point.m);
+        const x =
+            left +
+            (h.t / maxTime) * (right - left);
 
-    const scaledMax =
-      visualMultiplier(maxMultiplier);
+        const progress =
+            Math.log(h.m) /
+            Math.log(maxMultiplier);
 
-    const topLimit = 70;
-const bottomLimit = height - 70;
+        const y =
+            bottom -
+            progress * (bottom - top);
 
-const progress = scaled / scaledMax;
+        return { x, y };
 
-const y =
-    bottomLimit -
-    progress * (bottomLimit - topLimit);
+    });
 
-    return { x, y };
-  });
 }
 
-// ------------------------------------------------
-// Smooth Catmull-Rom spline
-// ------------------------------------------------
+export function buildSpline(ctx, pts) {
 
-export function buildSpline(ctx, points) {
+    if (pts.length < 2) return;
 
-    if (points.length < 2) return;
+    ctx.moveTo(pts[0].x, pts[0].y);
 
-  for (let i = 0; i < points.length - 1; i++) {
+    for (let i = 1; i < pts.length; i++) {
 
-    const p0 =
-      points[i - 1] || points[i];
+        const midX = (pts[i - 1].x + pts[i].x) / 2;
 
-    const p1 =
-      points[i];
+        ctx.quadraticCurveTo(
 
-    const p2 =
-      points[i + 1];
+            pts[i - 1].x,
+            pts[i - 1].y,
 
-    const p3 =
-      points[i + 2] || p2;
+            midX,
+            (pts[i - 1].y + pts[i].y) / 2
 
-    const cp1x =
-      p1.x +
-      (p2.x - p0.x) / 6;
+        );
 
-    const cp1y =
-      p1.y +
-      (p2.y - p0.y) / 6;
+    }
 
-    const cp2x =
-      p2.x -
-      (p3.x - p1.x) / 6;
-
-    const cp2y =
-      p2.y -
-      (p3.y - p1.y) / 6;
-
-    ctx.bezierCurveTo(
-      cp1x,
-      cp1y,
-      cp2x,
-      cp2y,
-      p2.x,
-      p2.y
+    ctx.lineTo(
+        pts[pts.length - 1].x,
+        pts[pts.length - 1].y
     );
-  }
-}
 
-// ------------------------------------------------
-// Plane direction
-// ------------------------------------------------
+}
 
 export function calculateAngle(points) {
 
-  if (points.length < 3)
-    return -0.35;
+    if (points.length < 2) return -0.3;
 
-  const a =
-    points[points.length - 3];
+    const a = points[points.length - 2];
+    const b = points[points.length - 1];
 
-  const b =
-    points[points.length - 1];
-
-  const dx =
-    b.x - a.x;
-
-  const dy =
-    b.y - a.y;
-
-  let angle =
-    Math.atan2(dy, dx);
-
-  angle =
-    Math.max(
-      -1.0,
-      Math.min(-0.05, angle)
+    return Math.atan2(
+        b.y - a.y,
+        b.x - a.x
     );
 
-  return angle;
 }
-
-// ------------------------------------------------
-// Smooth angle interpolation
-// ------------------------------------------------
 
 export function smoothAngle(current, target) {
-  return current + (target - current) * 0.15;
+
+    return current + (target - current) * 0.18;
+
 }
 
-// ------------------------------------------------
-// Plane floating motion
-// ------------------------------------------------
+export function planeLift() {
 
-export function planeLift(time) {
-  return Math.sin(time * 5) * 2;
+    return 0;
+
 }
-
-// ------------------------------------------------
-// Smoke trail
-// ------------------------------------------------
 
 export function createTrail(points) {
 
-  if (!points.length)
-    return [];
+    if (!points.length) return [];
 
-  const last =
-    points[points.length - 1];
+    const last = points[points.length - 1];
 
-  return Array.from(
-    { length: 12 },
-    (_, i) => ({
-      x: last.x - i * 8,
-      y: last.y + i * 2,
-      alpha: 1 - i / 12
-    })
-  );
+    return Array.from({ length: 8 }).map((_, i) => ({
+
+        x: last.x - i * 7,
+
+        y: last.y,
+
+        alpha: 1 - i / 8
+
+    }));
+
 }

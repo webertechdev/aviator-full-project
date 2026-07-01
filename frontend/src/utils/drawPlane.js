@@ -32,23 +32,6 @@ export function drawPlane(
 // Keep plane inside the canvas
 //------------------------------------------------------
 
-const margin = 50;
-
-tip.x = Math.max(
-    margin,
-    Math.min(
-        ctx.canvas.width - margin,
-        tip.x
-    )
-);
-
-tip.y = Math.max(
-    margin,
-    Math.min(
-        ctx.canvas.height - margin,
-        tip.y
-    )
-);
 
   //------------------------------------------------------
   // Smooth Rotation
