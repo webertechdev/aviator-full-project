@@ -3,153 +3,170 @@
 // ======================================================
 
 import {
-  calculateAngle,
-  smoothAngle,
-  planeLift,
-  createTrail
+    calculateAngle,
+    smoothAngle,
+    planeLift,
+    createTrail
 } from "./curveRenderer";
 
 export function drawPlane(
-  
-  ctx,
-  planeImage,
-  points,
-  angleRef,
-  gameTime = 0,
-  gamePhase = "flying"
+    ctx,
+    planeImage,
+    points,
+    angleRef,
+    gameTime = 0,
+    gamePhase = "flying"
 ) {
 
-  if (!planeImage) return;
+    if (!planeImage) return;
+    if (!points || points.length < 2) return;
 
-  if (!points.length) return;
+    //------------------------------------------------------
+    // Use EXACTLY the last visible curve point
+    //------------------------------------------------------
 
-  //------------------------------------------------------
-  // Plane Position
-  //------------------------------------------------------
-
-  const tip = points[points.length - 1];
-  //------------------------------------------------------
-// Keep plane inside the canvas
+    //------------------------------------------------------
+// Plane flies slightly ahead of the curve
 //------------------------------------------------------
 
+const tip = points[Math.max(points.length - 1, 0)];
 
-  //------------------------------------------------------
-  // Smooth Rotation
-  //------------------------------------------------------
+const prev =
+    points[Math.max(points.length - 2, 0)];
 
-  const targetAngle =
-    calculateAngle(points);
+const dx = tip.x - prev.x;
+const dy = tip.y - prev.y;
 
-  angleRef.current =
-    smoothAngle(
-      angleRef.current,
-      targetAngle
+const len = Math.hypot(dx, dy) || 1;
+
+//------------------------------------------------------
+// Position plane from its tail, not its centre
+//------------------------------------------------------
+
+const planeWidth = 100;
+const tailOffset = planeWidth * 0.42;
+
+const planeX =
+    tip.x + (dx / len) * tailOffset;
+
+const planeY =
+    tip.y + (dy / len) * tailOffset;
+    //------------------------------------------------------
+    // Keep plane inside graph
+    //------------------------------------------------------
+
+    const margin = 35;
+
+    const drawX = Math.max(
+    margin,
+    Math.min(
+        ctx.canvas.width - margin,
+        planeX
+    )
+);
+
+const drawY = Math.max(
+    margin,
+    Math.min(
+        ctx.canvas.height - margin,
+        planeY
+    )
+);
+    //------------------------------------------------------
+    // Smooth rotation
+    //------------------------------------------------------
+
+    const targetAngle = calculateAngle(points);
+
+    angleRef.current = smoothAngle(
+        angleRef.current,
+        targetAngle
     );
 
-  //------------------------------------------------------
-  // Floating Lift
-  //------------------------------------------------------
+    //------------------------------------------------------
+    // Plane only floats near the end
+    //------------------------------------------------------
 
-  const lift =
-    planeLift(gameTime);
+    let lift = 0;
 
-  //------------------------------------------------------
-  // Engine Trail
-  //------------------------------------------------------
+    if (drawX > ctx.canvas.width * 0.75) {
 
-  const trail =
-    createTrail(points);
+        lift = planeLift(gameTime);
 
-  ctx.save();
+    }
 
-  trail.forEach(p => {
+    //------------------------------------------------------
+    // Smoke trail
+    //------------------------------------------------------
 
-    ctx.beginPath();
+    const trail = createTrail(points);
 
-    ctx.arc(
+    ctx.save();
 
-      p.x,
+    trail.forEach(p => {
 
-      p.y,
+        ctx.beginPath();
 
-      3,
+        ctx.arc(
+            p.x,
+            p.y,
+            3,
+            0,
+            Math.PI * 2
+        );
 
-      0,
+        ctx.fillStyle =
+            `rgba(255,70,70,${p.alpha * 0.30})`;
 
-      Math.PI * 2
+        ctx.fill();
 
+    });
+
+    ctx.restore();
+
+    //------------------------------------------------------
+    // Plane
+    //------------------------------------------------------
+
+    ctx.save();
+
+    ctx.translate(
+        drawX,
+        drawY - 10 + lift
     );
 
-    ctx.fillStyle =
-      `rgba(255,70,70,${p.alpha * .30})`;
+    ctx.rotate(angleRef.current);
 
-    ctx.fill();
+    if (gamePhase === "crashed") {
 
-  });
+        ctx.globalAlpha = .65;
 
-  ctx.restore();
+        ctx.filter =
+            "grayscale(1) brightness(.45)";
 
-  //------------------------------------------------------
-  // Draw Aircraft
-  //------------------------------------------------------
+    }
 
-  ctx.save();
+    ctx.shadowColor =
+        gamePhase === "crashed"
+            ? "#ff3300"
+            : "#ff2045";
 
-  ctx.translate(
+    ctx.shadowBlur =
+        gamePhase === "crashed"
+            ? 8
+            : 18;
 
-    tip.x,
+    const width = 100;
+    const height = 28;
 
-    tip.y - 10 + lift
+    ctx.drawImage(
+        planeImage,
+        -width / 2,
+        -height / 2,
+        width,
+        height
+    );
 
-  );
-
-  ctx.rotate(angleRef.current);
-
-  //------------------------------------------------------
-
-  if (gamePhase === "crashed") {
-
-    ctx.globalAlpha = .65;
-
-    ctx.filter =
-      "grayscale(1) brightness(.45)";
-
-  }
-
-  //------------------------------------------------------
-
-  ctx.shadowColor =
-    gamePhase === "crashed"
-      ? "#ff3300"
-      : "#ff2045";
-
-  ctx.shadowBlur =
-    gamePhase === "crashed"
-      ? 8
-      : 18;
-
-  const width = 105;
-
-  const height = 28;
-
-  ctx.drawImage(
-
-    planeImage,
-
-    -width / 2,
-
-    -height / 2,
-
-    width,
-
-    height
-
-  );
-
-  ctx.filter = "none";
-
-  ctx.globalAlpha = 1;
-
-  ctx.restore();
+    ctx.restore();
 
 }

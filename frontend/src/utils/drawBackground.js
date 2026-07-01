@@ -140,8 +140,7 @@ export function drawBackground(ctx, W, H) {
 
   );
 
-}
-ctx.save();
+  ctx.save();
 
 ctx.strokeStyle = "rgba(255,255,255,.08)";
 
@@ -155,3 +154,4 @@ H-40
 );
 
 ctx.restore();
+}

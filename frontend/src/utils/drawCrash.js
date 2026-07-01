@@ -3,111 +3,143 @@
 // ======================================================
 
 export function drawCrash(
-  ctx,
-  x,
-  y,
-  frame,
-  multiplier
+    ctx,
+    x,
+    y,
+    frame,
+    multiplier
 ) {
 
-  //----------------------------------------------------
-  // Explosion particles
-  //----------------------------------------------------
+    //----------------------------------------------------
+    // Faster explosion
+    //----------------------------------------------------
 
-  if (frame < 24) {
+    const maxFrames = 18;
 
-    for (let i = 0; i < 14; i++) {
+    if (frame < maxFrames) {
 
-      const angle =
-        (i / 14) * Math.PI * 2;
+        for (let i = 0; i < 20; i++) {
 
-      const radius =
-        frame * 4;
+            const angle =
+                (i / 20) * Math.PI * 2;
 
-      const alpha =
-        Math.max(
-          0,
-          1 - frame / 24
-        );
+            const radius =
+                frame * 5;
 
-      ctx.beginPath();
+            const alpha =
+                Math.max(
+                    0,
+                    1 - frame / maxFrames
+                );
 
-      ctx.arc(
+            ctx.beginPath();
 
-        x + Math.cos(angle) * radius,
+            ctx.arc(
 
-        y + Math.sin(angle) * radius,
+                x + Math.cos(angle) * radius,
 
-        Math.max(
-          1,
-          4 - frame * .12
-        ),
+                y + Math.sin(angle) * radius,
 
-        0,
+                Math.max(
+                    1.5,
+                    5 - frame * 0.18
+                ),
 
-        Math.PI * 2
+                0,
 
-      );
+                Math.PI * 2
 
-      ctx.fillStyle =
-        `rgba(255,${
-          180 - frame * 5
-        },0,${alpha})`;
+            );
 
-      ctx.fill();
+            ctx.fillStyle =
+                `rgba(255,${180 - frame * 6},20,${alpha})`;
+
+            ctx.fill();
+
+        }
 
     }
 
-  }
+    //----------------------------------------------------
+    // Shockwave
+    //----------------------------------------------------
 
-  //----------------------------------------------------
-  // Crash Text
-  //----------------------------------------------------
+    if (frame < 10) {
 
-  ctx.save();
+        ctx.save();
 
-  const alpha =
-    Math.min(1, frame / 8);
+        ctx.beginPath();
 
-  ctx.globalAlpha = alpha;
+        ctx.arc(
 
-  ctx.textAlign = "center";
+            x,
 
-  ctx.shadowColor = "#ff0000";
+            y,
 
-  ctx.shadowBlur = 28;
+            frame * 10,
 
-  ctx.fillStyle = "#ff1f1f";
+            0,
 
-  ctx.font =
-    "bold 28px Orbitron";
+            Math.PI * 2
 
-  ctx.fillText(
+        );
 
-    "FLEW AWAY!",
+        ctx.strokeStyle =
+            `rgba(255,80,80,${1 - frame / 10})`;
 
-    ctx.canvas.width / 2,
+        ctx.lineWidth = 3;
 
-    ctx.canvas.height / 2 - 12
+        ctx.stroke();
 
-  );
+        ctx.restore();
 
-  ctx.font =
-    "bold 16px Orbitron";
+    }
 
-  ctx.fillStyle =
-    "rgba(255,180,180,.95)";
+    //----------------------------------------------------
+    // Crash Text
+    //----------------------------------------------------
 
-  ctx.fillText(
+    ctx.save();
 
-    `${multiplier.toFixed(2)}x`,
+    const alpha =
+        Math.min(1, frame / 5);
 
-    ctx.canvas.width / 2,
+    ctx.globalAlpha = alpha;
 
-    ctx.canvas.height / 2 + 20
+    ctx.textAlign = "center";
 
-  );
+    ctx.shadowColor = "#ff2d2d";
 
-  ctx.restore();
+    ctx.shadowBlur = 30;
+
+    ctx.fillStyle = "#ff1c1c";
+
+    ctx.font = "bold 30px Orbitron";
+
+    ctx.fillText(
+
+        "FLEW AWAY!",
+
+        ctx.canvas.width / 2,
+
+        ctx.canvas.height / 2 - 18
+
+    );
+
+    ctx.font = "bold 18px Orbitron";
+
+    ctx.fillStyle = "#ffd9d9";
+
+    ctx.fillText(
+
+        `${multiplier.toFixed(2)}x`,
+
+        ctx.canvas.width / 2,
+
+        ctx.canvas.height / 2 + 18
+
+    );
+
+    ctx.restore();
 
 }

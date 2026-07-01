@@ -1,109 +1,164 @@
 // ======================================================
-// Curve Renderer V2
+// Curve Renderer
+// Premium Smooth Aviator Curve
 // ======================================================
 
+// ------------------------------------------------
+// Build curve points
+// ------------------------------------------------
+
+import { buildFlightCurve } from "./curvePath";
+
 export function sampleCurve(history, width, height) {
-
-    if (!history.length) return [];
-
-    const left = 40;
-    const right = width - 120;
-
-    const bottom = height - 40;
-    const top = 40;
-
-    const maxTime = history[history.length - 1].t || 1;
-    const maxMultiplier = Math.max(...history.map(h => h.m), 2);
-
-    return history.map(h => {
-
-        const x =
-            left +
-            (h.t / maxTime) * (right - left);
-
-        const progress =
-            Math.log(h.m) /
-            Math.log(maxMultiplier);
-
-        const y =
-            bottom -
-            progress * (bottom - top);
-
-        return { x, y };
-
-    });
-
+    return buildFlightCurve(history, width, height);
 }
+// ------------------------------------------------
+// Smooth spline
+// ------------------------------------------------
 
-export function buildSpline(ctx, pts) {
+export function buildSpline(ctx, points) {
 
-    if (pts.length < 2) return;
+    if (points.length < 2)
+        return;
 
-    ctx.moveTo(pts[0].x, pts[0].y);
+    ctx.moveTo(points[0].x, points[0].y);
 
-    for (let i = 1; i < pts.length; i++) {
+// Lock the first segment to the origin
+ctx.lineTo(points[1].x, points[1].y);
 
-        const midX = (pts[i - 1].x + pts[i].x) / 2;
+for (let i = 1; i < points.length - 1; i++) {
 
-        ctx.quadraticCurveTo(
+        const p0 =
+            points[i - 1] || points[i];
 
-            pts[i - 1].x,
-            pts[i - 1].y,
+        const p1 =
+            points[i];
 
-            midX,
-            (pts[i - 1].y + pts[i].y) / 2
+        const p2 =
+            points[i + 1];
+
+        const p3 =
+            points[i + 2] || p2;
+
+        const cp1x =
+            p1.x +
+            (p2.x - p0.x) / 6;
+
+        const cp1y =
+            p1.y +
+            (p2.y - p0.y) / 6;
+
+        const cp2x =
+            p2.x -
+            (p3.x - p1.x) / 6;
+
+        const cp2y =
+            p2.y -
+            (p3.y - p1.y) / 6;
+
+        ctx.bezierCurveTo(
+
+            cp1x,
+            cp1y,
+
+            cp2x,
+            cp2y,
+
+            p2.x,
+            p2.y
 
         );
 
     }
 
-    ctx.lineTo(
-        pts[pts.length - 1].x,
-        pts[pts.length - 1].y
-    );
-
 }
+
+// ------------------------------------------------
+// Plane rotation
+// ------------------------------------------------
 
 export function calculateAngle(points) {
 
-    if (points.length < 2) return -0.3;
+    if (points.length < 2)
+        return -0.18;
 
-    const a = points[points.length - 2];
-    const b = points[points.length - 1];
+    const a =
+        points[points.length - 2];
 
-    return Math.atan2(
-        b.y - a.y,
-        b.x - a.x
+    const b =
+        points[points.length - 1];
+
+    const angle =
+        Math.atan2(
+
+            b.y - a.y,
+
+            b.x - a.x
+
+        );
+
+    return Math.max(
+        -0.7,
+        Math.min(
+            -0.05,
+            angle
+        )
     );
 
 }
 
+// ------------------------------------------------
+// Smooth angle
+// ------------------------------------------------
+
 export function smoothAngle(current, target) {
 
-    return current + (target - current) * 0.18;
+    return current + (target - current) * 0.14;
 
 }
 
-export function planeLift() {
+// ------------------------------------------------
+// Plane floating
+// ------------------------------------------------
 
-    return 0;
+export function planeLift(time) {
+
+    return Math.sin(time * 3) * 1.5;
 
 }
+
+// ------------------------------------------------
+// Engine smoke
+// ------------------------------------------------
 
 export function createTrail(points) {
 
-    if (!points.length) return [];
+    if (!points.length)
+        return [];
 
-    const last = points[points.length - 1];
+    const last =
+        points[points.length - 1];
 
-    return Array.from({ length: 8 }).map((_, i) => ({
+    return Array.from(
 
-        x: last.x - i * 7,
+        { length: 10 },
 
-        y: last.y,
+        (_, i) => ({
 
-        alpha: 1 - i / 8
+            x:
+                last.x -
+                i * 6,
 
-    }));
+            y:
+                last.y +
+                i * 1.5,
+
+            alpha:
+                1 -
+                i / 10
+
+        })
+
+    );
 
 }

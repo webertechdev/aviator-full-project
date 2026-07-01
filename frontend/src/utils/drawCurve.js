@@ -1,193 +1,104 @@
 // ======================================================
 // Premium Aviator Curve Renderer
-// Betika-style exponential curve
+// Thin Betika-style curve
 // ======================================================
+
 import { buildSpline } from "./curveRenderer";
 
-
-
 export function drawCurve(
-  
-  ctx,
-  points,
-  width,
-  height,
-  gamePhase = "flying"
+    ctx,
+    points,
+    width,
+    height,
+    gamePhase = "flying"
 ) {
-  if (!points || points.length < 2) return;
+    if (!points || points.length < 2) return;
 
-  //------------------------------------------------------
-  // Area Fill
-  //------------------------------------------------------
-
-  ctx.save();
-
-  ctx.beginPath();
-
-  ctx.moveTo(points[0].x, height);
-
-  buildSpline(ctx, points);
-
-  ctx.lineTo(
-    points[points.length - 1].x,
-    height
-  );
-
-  ctx.closePath();
-
-  const fill = ctx.createLinearGradient(
-    0,
-    0,
-    0,
-    height
-  );
-
-  if (gamePhase === "crashed") {
-
-    fill.addColorStop(
-      0,
-      "rgba(255,60,60,.65)"
-    );
-
-    fill.addColorStop(
-      .45,
-      "rgba(160,0,0,.20)"
-    );
-
-    fill.addColorStop(
-      1,
-      "rgba(0,0,0,0)"
-    );
-
-  } else {
-
-    fill.addColorStop(
-      0,
-      "rgba(232,0,61,.55)"
-    );
-
-    fill.addColorStop(
-      .45,
-      "rgba(170,0,40,.20)"
-    );
-
-    fill.addColorStop(
-      1,
-      "rgba(0,0,0,0)"
-    );
-
-  }
-
-  ctx.fillStyle = fill;
-
-  ctx.fill();
-
-  ctx.restore();
-
-  //------------------------------------------------------
-  // Neon Glow
-  //------------------------------------------------------
-
-  ctx.save();
-
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-
-  buildSpline(ctx, points);
-
-  ctx.strokeStyle =
-    gamePhase === "crashed"
-      ? "#e40d0d"
-      : "#ff1248";
-
-  ctx.lineWidth = 12;
-
-  ctx.shadowBlur = 30;
-
-  ctx.shadowColor = ctx.strokeStyle;
-
-  ctx.globalAlpha = .18;
-
-  ctx.stroke();
-
-  ctx.restore();
-
-  //------------------------------------------------------
-  // Main Line
-  //------------------------------------------------------
-
-  ctx.save();
-
-  ctx.beginPath();
-
-  buildSpline(ctx, points);
-
-  ctx.strokeStyle =
-    gamePhase === "crashed"
-      ? "#cc2020"
-      : "#e8003d";
-
-  ctx.lineWidth = 3.8;
-
-  ctx.lineCap = "round";
-
-  ctx.lineJoin = "round";
-
-  ctx.shadowBlur = 14;
-
-  ctx.shadowColor = ctx.strokeStyle;
-
-  ctx.stroke();
-
-  ctx.restore();
-
-  //------------------------------------------------------
-  // Tip Glow
-  //------------------------------------------------------
-
-  if (gamePhase !== "crashed") {
-
-    const tip =
-      points[points.length - 1];
+    //------------------------------------------------------
+    // Deep shaded region
+    //------------------------------------------------------
 
     ctx.save();
 
     ctx.beginPath();
 
-    ctx.arc(
-      tip.x,
-      tip.y,
-      6,
-      0,
-      Math.PI * 2
+    ctx.moveTo(0, height);
+    ctx.lineTo(points[0].x, points[0].y);
+
+    buildSpline(ctx, points);
+
+    ctx.lineTo(points[points.length - 1].x, height);
+    ctx.closePath();
+
+    const fill = ctx.createLinearGradient(
+        0,
+        points[0].y,
+        0,
+        height
     );
 
-    const g =
-      ctx.createRadialGradient(
-        tip.x,
-        tip.y,
-        0,
-        tip.x,
-        tip.y,
-        10
-      );
+    if (gamePhase === "crashed") {
 
-    g.addColorStop(0, "#ffffff");
+        fill.addColorStop(0, "rgba(255,25,25,0.72)");
+        fill.addColorStop(0.45, "rgba(185,0,0,0.55)");
+        fill.addColorStop(1, "rgba(70,0,0,0)");
 
-    g.addColorStop(.35, "#ff2958");
+    } else {
 
-    g.addColorStop(1, "rgba(255,0,0,0)");
+        fill.addColorStop(0, "rgba(235,0,55,0.72)");
+        fill.addColorStop(0.45, "rgba(165,0,35,0.58)");
+        fill.addColorStop(1, "rgba(60,0,0,0)");
 
-    ctx.fillStyle = g;
+    }
 
-    ctx.shadowBlur = 18;
-
-    ctx.shadowColor = "#ff2958";
-
+    ctx.fillStyle = fill;
     ctx.fill();
 
     ctx.restore();
 
-  }
+    //------------------------------------------------------
+    // Thin premium curve
+    //------------------------------------------------------
 
+    ctx.save();
+
+    ctx.beginPath();
+
+    ctx.moveTo(points[0].x, points[0].y);
+
+    buildSpline(ctx, points);
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // soft glow
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = "#ff0b47";
+
+    // thin outer glow
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(255,0,70,0.45)";
+    ctx.stroke();
+
+    // main thin line
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    buildSpline(ctx, points);
+
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "#ff1a5e";
+    ctx.stroke();
+
+    // bright highlight
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    buildSpline(ctx, points);
+
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = "#f6063a";
+    ctx.globalAlpha = 0.8;
+    ctx.stroke();
+
+    ctx.restore();
 }
