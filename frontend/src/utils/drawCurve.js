@@ -22,13 +22,28 @@ export function drawCurve(
 
     ctx.beginPath();
 
-    ctx.moveTo(0, height);
-    ctx.lineTo(points[0].x, points[0].y);
+// start directly under the first point
+ctx.moveTo(points[0].x, height);
 
-    buildSpline(ctx, points);
+// left edge
+ctx.lineTo(points[0].x, points[0].y);
 
-    ctx.lineTo(points[points.length - 1].x, height);
-    ctx.closePath();
+// curve
+buildSpline(ctx, points);
+
+// go straight down from the last curve point
+ctx.lineTo(
+    points[points.length - 1].x,
+    height
+);
+
+// return along the bottom
+ctx.lineTo(
+    points[0].x,
+    height
+);
+
+ctx.closePath();
 
     const fill = ctx.createLinearGradient(
         0,

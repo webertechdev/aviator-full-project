@@ -29,46 +29,52 @@ export function drawPlane(
 // Plane flies slightly ahead of the curve
 //------------------------------------------------------
 
-const tip = points[Math.max(points.length - 1, 0)];
-
-const prev =
-    points[Math.max(points.length - 2, 0)];
+const tip = points[points.length - 1];
+const prev = points[points.length - 2];
 
 const dx = tip.x - prev.x;
 const dy = tip.y - prev.y;
 
 const len = Math.hypot(dx, dy) || 1;
 
-//------------------------------------------------------
-// Position plane from its tail, not its centre
-//------------------------------------------------------
-
+// keep the TAIL exactly on the curve
 const planeWidth = 100;
-const tailOffset = planeWidth * 0.42;
 
-const planeX =
-    tip.x + (dx / len) * tailOffset;
+const planeX = tip.x + (dx / len) * (planeWidth * 0.50);
+const planeY = tip.y + (dy / len) * (planeWidth * 0.50);
 
-const planeY =
-    tip.y + (dy / len) * tailOffset;
+// emergency fallback
+if (!Number.isFinite(planeX) || !Number.isFinite(planeY)) {
+    return;
+}
     //------------------------------------------------------
     // Keep plane inside graph
     //------------------------------------------------------
 
     const margin = 35;
 
-    const drawX = Math.max(
-    margin,
+    // ------------------------------------------------------
+// Confine plane to the visible graph rectangle
+// ------------------------------------------------------
+
+const GRAPH_LEFT = 42;
+const GRAPH_RIGHT = ctx.canvas.width - 90;
+
+const GRAPH_TOP = 60;
+const GRAPH_BOTTOM = ctx.canvas.height - 65;
+
+const drawX = Math.max(
+    GRAPH_LEFT,
     Math.min(
-        ctx.canvas.width - margin,
+        GRAPH_RIGHT,
         planeX
     )
 );
 
 const drawY = Math.max(
-    margin,
+    GRAPH_TOP,
     Math.min(
-        ctx.canvas.height - margin,
+        GRAPH_BOTTOM,
         planeY
     )
 );
@@ -108,12 +114,12 @@ const drawY = Math.max(
         ctx.beginPath();
 
         ctx.arc(
-            p.x,
-            p.y,
-            3,
-            0,
-            Math.PI * 2
-        );
+    p.x,
+    p.y,
+    p.r,
+    0,
+    Math.PI * 2
+);
 
         ctx.fillStyle =
             `rgba(255,70,70,${p.alpha * 0.30})`;

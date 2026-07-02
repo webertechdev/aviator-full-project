@@ -1,17 +1,17 @@
 // ======================================================
 // curvePath.js
-// Betika-style quadratic flight path
+// Premium Aviator Flight Path
 // ======================================================
 
-export function getFlightProgress(multiplier, maxMultiplier) {
+export function getFlightProgress(multiplier) {
 
-    if (maxMultiplier <= 1) return 0;
+    const MAX = 70;
 
     return Math.max(
         0,
         Math.min(
             1,
-            (multiplier - 1) / (maxMultiplier - 1)
+            (multiplier - 1) / (MAX - 1)
         )
     );
 
@@ -19,28 +19,38 @@ export function getFlightProgress(multiplier, maxMultiplier) {
 
 export function getFlightPoint(progress, width, height) {
 
-    const LEFT = 0;
-const BOTTOM = height - 60;
+    // Graph origin
+const LEFT = 42;
+const BOTTOM = height - 65;
 
-    const usableWidth = width - LEFT - 140;
-    const usableHeight = height - 140;
+// Drawing area
+// Keep the curve behind the plane
+const PLANE_WIDTH = 100;
+const TAIL_OFFSET = PLANE_WIDTH * 0.50;
+
+// Curve stops before the plane nose
+const RIGHT = width * 0.65 - TAIL_OFFSET;
+const TOP = 50;
+
+const usableWidth = RIGHT - LEFT;
+const usableHeight = BOTTOM - TOP;
 
     const p0 = {
-        x: LEFT,
-        y: BOTTOM
-    };
+    x: LEFT,
+    y: BOTTOM
+};
 
-    const p1 = {
-        x: LEFT + usableWidth * 0.40,
-        y: BOTTOM
-    };
+const p1 = {
+    x: LEFT + usableWidth * 0.42,
+    y: BOTTOM
+};
 
-    const p2 = {
-        x: LEFT + usableWidth,
-        y: BOTTOM - usableHeight
-    };
+const p2 = {
+    x: RIGHT,
+    y: TOP
+};
 
-    const t = Math.max(0, Math.min(1, progress));
+    const t = Math.max(0, Math.min(progress, 1));
     const omt = 1 - t;
 
     return {
@@ -63,23 +73,20 @@ export function buildFlightCurve(history, width, height) {
 
     if (!history.length) return [];
 
-    const maxMultiplier =
-history[history.length - 1].m;
+    const maxMultiplier = Math.max(
 
-    return history.map(point => {
+        history[history.length - 1].m,
 
-        const progress =
-            getFlightProgress(
-                point.m,
-                maxMultiplier
-            );
+        2
 
-        return getFlightPoint(
-            progress,
-            width,
-            height
-        );
+    );
 
-    });
+    return history.map(item =>
+    getFlightPoint(
+        Math.min(item.p ?? getFlightProgress(item.m), 1),
+        width,
+        height
+    )
+);
 
 }

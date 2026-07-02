@@ -212,23 +212,35 @@ export default function GameCanvas({
 
     if (gamePhase === "flying") {
 
-    if (historyRef.current.length === 0) {
-
+    if (!startTimeRef.current) {
         startTimeRef.current = performance.now();
-
     }
 
-    historyRef.current.push({
+    const elapsed =
+        (performance.now() - startTimeRef.current) / 1000;
 
-        t: (performance.now() - startTimeRef.current) / 1000,
+    // Plane reaches end in about 4.5 seconds
+    const flightProgress =
+        Math.min(elapsed / 4.5, 1);
 
-        m: multiplier
+    // Only append ONE point if progress has advanced
+    const last =
+        historyRef.current[historyRef.current.length - 1];
 
-    });
+    if (
+        !last ||
+        flightProgress > (last.p ?? 0) + 0.002
+    ) {
 
-    if (historyRef.current.length > 250) {
+        historyRef.current.push({
 
-        historyRef.current.shift();
+            t: elapsed,
+
+            p: flightProgress,
+
+            m: multiplier
+
+        });
 
     }
 
